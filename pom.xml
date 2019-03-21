@@ -21,6 +21,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.8.0</version>
                 <configuration>
                     <source>11</source>
                     <target>11</target>
@@ -43,7 +44,7 @@
                 <configuration>
                     <message>Creating site for ${project.version}</message>
                     <outputDirectory>${project.build.directory}/mvn-repo</outputDirectory>
-                    <branch>refs/heads/mvn-repo</branch>
+                    <branch>refs/heads/gh-pages</branch>
                     <includes><include>**/*</include></includes>
                 </configuration>
                 <executions>
@@ -59,9 +60,9 @@
     </build>
 
     <scm>
-        <connection>scm:git:git://github.com/biger-exchange/.git</connection>
-        <developerConnection>scm:git:git@github.com:biger-exchange/.git</developerConnection>
-        <url>http://github.com/niger-exchange/</url>
+        <connection>scm:git:git://github.com/biger-exchange/biger-client.git</connection>
+        <developerConnection>scm:git:git@github.com:biger-exchange/biger-client.git</developerConnection>
+        <url>http://github.com/biger-exchange/</url>
     </scm>
 
     <properties>
