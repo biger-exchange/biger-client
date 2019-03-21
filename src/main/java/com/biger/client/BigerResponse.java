@@ -10,4 +10,15 @@ public class BigerResponse<T> {
     public T data() {
         return data;
     }
+
+    @Override
+    public String toString() {
+        return "BigerResponse{" +
+                "result='" + result + '\'' +
+                ", code=" + code +
+                ", msg='" + msg + '\'' +
+                ", data=" + data +
+                ", requestTraceId='" + requestTraceId + '\'' +
+                '}';
+    }
 }

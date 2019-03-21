@@ -1,6 +1,8 @@
 package com.biger.client.internal;
 
+import com.biger.client.BigerException;
 import com.biger.client.BigerResponse;
+import com.biger.client.BigerResponseException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -78,13 +80,32 @@ interface Utils {
         });
 
         return s.httpClient.sendAsync(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+                .thenApply(resp->{
+                    if (resp.statusCode() != 200) {
+                            throw new BigerResponseException("non 200 response", resp.statusCode(), resp.body());
+                    }
+                    return resp;
+                })
                 .thenApply(HttpResponse::body)
                 .thenApply(pl->{
+                    BigerResponse<T> resp;
                     try {
-                        return m.readValue(pl, typeReference);
+                        resp = m.readValue(pl, typeReference);
                     } catch (IOException e) {
-                        throw new RuntimeException(e);
+                        throw new BigerException("error while parsing response body", e);
                     }
+                    // if the request fails due to crypto failures of expiry timeout, the http status is still 200.
+                    // but the code field in response body will be something else
+                    if (resp.code != 200) {
+                        if (resp.code == 900108) {
+                            throw new BigerResponseException("expired request - check that your system clock is synchronized", 200, pl);
+                        }
+                        if (resp.code == 900109) {
+                            throw new BigerResponseException("please check that your access token is valid and not expired, else contact biger to file a report", 200, pl);
+                        }
+                        throw new BigerResponseException("err code is " + resp.code, 200, pl);
+                    }
+                    return resp;
                 });
     }
 

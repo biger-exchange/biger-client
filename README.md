@@ -8,11 +8,6 @@ pre-release condition for the moment, use at your own risk
 * websocket market data
 * websocket order change subscription
 * protocol version compatibility check
-* error handling
-  - decryption error
-  - expiry error
-  - non 200 resp error
-  - ip block
 * configurability of 
   - connect, req timeout
   - req expiry allowance
