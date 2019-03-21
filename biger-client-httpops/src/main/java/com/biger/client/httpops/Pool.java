@@ -1,4 +1,4 @@
-package com.biger.client.internal;
+package com.biger.client.httpops;
 
 
 import java.util.concurrent.LinkedBlockingQueue;
@@ -9,11 +9,11 @@ public abstract class Pool<T> {
 
     final LinkedBlockingQueue<T> objects;
 
-    Pool(int capacity) {
+    public Pool(int capacity) {
         objects = new LinkedBlockingQueue<>(capacity);
     }
 
-    Pool() {
+    public Pool() {
         this(Integer.MAX_VALUE);
     }
 

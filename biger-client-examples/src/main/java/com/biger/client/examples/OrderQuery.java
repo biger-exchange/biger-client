@@ -1,4 +1,4 @@
-package com.biger.client.example;
+package com.biger.client.examples;
 
 import com.biger.client.BigerClient;
 

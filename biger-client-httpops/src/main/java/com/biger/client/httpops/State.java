@@ -1,12 +1,12 @@
-package com.biger.client.internal;
+package com.biger.client.httpops;
 
 import javax.crypto.Cipher;
 
-class State {
-    final HttpOps httpOps;
-    final String url;
-    final String accessToken;
-    final Pool<Cipher> encryptors;
+public class State {
+    public final HttpOps httpOps;
+    public final String url;
+    public final String accessToken;
+    public final Pool<Cipher> encryptors;
 
     public State(HttpOps httpOps, String url, String accessToken, Pool<Cipher> encryptors) {
         this.httpOps = httpOps;

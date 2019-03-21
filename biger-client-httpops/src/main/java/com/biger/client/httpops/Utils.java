@@ -1,8 +1,5 @@
-package com.biger.client.internal;
+package com.biger.client.httpops;
 
-import com.biger.client.BigerException;
-import com.biger.client.BigerResponse;
-import com.biger.client.BigerResponseException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -58,35 +55,38 @@ public interface Utils {
 
         long expiry = System.currentTimeMillis() + 10000;
 
-        return s.httpOps.sendAsync(
-                uri,
-                s.accessToken,
-                s.encryptors,
-                method,
-                queryString,
-                expiry,
-                body,
-                Duration.ofSeconds(10L))
-                .thenApply(pl->{
-                    BigerResponse<T> resp;
-                    try {
-                        resp = m.readValue(pl, typeReference);
-                    } catch (IOException e) {
-                        throw new BigerException("error while parsing response body", e);
-                    }
-                    // if the request fails due to crypto failures of expiry timeout, the http status is still 200.
-                    // but the code field in response body will be something else
-                    if (resp.code != 200) {
-                        if (resp.code == 900108) {
-                            throw new BigerResponseException("expired request - check that your system clock is synchronized", 200, pl);
+        return s.encryptors.borrowAndApply(c->{
+            return s.httpOps.sendAsync(
+                    uri,
+                    s.accessToken,
+                    c,
+                    method,
+                    queryString,
+                    expiry,
+                    body,
+                    Duration.ofSeconds(10L))
+                    .thenApply(pl->{
+                        BigerResponse<T> resp;
+                        try {
+                            resp = m.readValue(pl, typeReference);
+                        } catch (IOException e) {
+                            throw new BigerResponseException("error while parsing response body", e);
                         }
-                        if (resp.code == 900109) {
-                            throw new BigerResponseException("please check that your access token is valid and not expired, else contact biger to file a report", 200, pl);
+                        // if the request fails due to crypto failures of expiry timeout, the http status is still 200.
+                        // but the code field in response body will be something else
+                        if (resp.code != 200) {
+                            if (resp.code == 900108) {
+                                throw new BigerResponseException("expired request - check that your system clock is synchronized", 200, pl);
+                            }
+                            if (resp.code == 900109) {
+                                throw new BigerResponseException("please check that your access token is valid and not expired, else contact biger to file a report", 200, pl);
+                            }
+                            throw new BigerResponseException("err code is " + resp.code, 200, pl);
                         }
-                        throw new BigerResponseException("err code is " + resp.code, 200, pl);
-                    }
-                    return resp;
-                });
+                        return resp;
+                    });
+        });
+
     }
 
     static String encodePath(String source) {

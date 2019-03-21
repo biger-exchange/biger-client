@@ -1,4 +1,4 @@
-package com.biger.client.example;
+package com.biger.client.examples;
 
 import com.biger.client.BigerClient;
 
@@ -10,7 +10,7 @@ import java.nio.file.Path;
  * Fill in the section denoted by ***INPUT PARAMETERS*** with appropriate values before proceeding
  * place private key file named "privateKey" in user home directory foe this to work
  */
-public class OrderCreation {
+public class OrderCancel {
     public static void main(String[] args) throws Exception {
 
         // ***INPUT PARAMETERS*** {
@@ -19,10 +19,7 @@ public class OrderCreation {
                 System.getProperty("user.home"),
                 "privateKey"
         ));
-        String symbol="BTCUSDT";
-        boolean isBuy = true;
-        BigDecimal price = new BigDecimal("100");
-        BigDecimal qty = new BigDecimal("0.01");
+        String orderId = "9d09bfa7-9356-42bd-968f-f19459e2c6ab";
         // ***INPUT PARAMETERS*** }
 
         BigerClient c = BigerClient.builder()
@@ -31,13 +28,7 @@ public class OrderCreation {
                 .url("https://pub-api.biger.in")
                 .build();
 
-        c.orders().createLimitOrder(
-                    symbol,
-                    isBuy,
-                    price,
-                    qty
-                )
-                .thenAccept(System.out::println)
+        c.orders().cancel(orderId)
                 .join();
 
     }

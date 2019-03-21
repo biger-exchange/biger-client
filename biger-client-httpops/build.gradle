@@ -8,5 +8,5 @@ sourceCompatibility=1.8
 targetCompatibility=1.8
 
 dependencies {
-    api project(":biger-client-httpops")
+    api 'com.fasterxml.jackson.core:jackson-databind:2.9.8'
 }

@@ -1,4 +1,4 @@
-package com.biger.client.internal;
+package com.biger.client.httpops;
 
 import java.time.Duration;
 import java.util.ServiceLoader;
@@ -10,8 +10,6 @@ public interface HttpOpsBuilder {
     HttpOps build();
 
     static HttpOpsBuilder newBuilder() {
-        return ServiceLoader.load(HttpOpsBuilder.class)
-                .findFirst()
-                .orElseThrow();
+        return ServiceLoader.load(HttpOpsBuilder.class).iterator().next();
     }
 }

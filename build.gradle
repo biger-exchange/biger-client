@@ -1,8 +1,10 @@
-allprojects {
+
+configure(subprojects) {
+
     apply plugin: 'java'
     apply plugin: 'java-library'
     apply plugin: 'idea'
-    apply plugin: 'maven-publish'
+    apply plugin: 'maven'
 
     [compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
 
@@ -13,25 +15,9 @@ allprojects {
         mavenLocal()
         mavenCentral()
     }
-}
-
-configure(subprojects) {
 
     task sourcesJar(type: Jar, dependsOn: classes) {
         classifier = 'sources'
         from sourceSets.main.allSource
-    }
-
-    publishing {
-        publications {
-            mavenJava(MavenPublication) {
-                from components.java
-                artifact sourcesJar
-            }
-        }
-
-        repositories {
-            mavenLocal()
-        }
     }
 }

@@ -1,4 +1,4 @@
-package com.biger.client;
+package com.biger.client.httpops;
 
 public class BigerResponse<T> {
     public String result;

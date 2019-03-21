@@ -1,7 +1,9 @@
 package com.biger.client.internal;
 
-import com.biger.client.BigerResponse;
+import com.biger.client.httpops.BigerResponse;
 import com.biger.client.SymbolClient;
+import com.biger.client.httpops.State;
+import com.biger.client.httpops.Utils;
 import com.fasterxml.jackson.core.type.TypeReference;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;

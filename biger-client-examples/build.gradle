@@ -1,0 +1,16 @@
+plugins {
+    id 'java'
+}
+
+sourceCompatibility = 11
+targetCompatibility = 11
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
+
+dependencies {
+    compile 'com.biger:biger-client-core:2.0-SNAPSHOT'
+    compile 'com.biger:biger-client-httpops-httpclient:2.0-SNAPSHOT'
+}

@@ -1,10 +1,8 @@
-package com.biger.client.internal.httpclient;
+package com.biger.client.httpops.httpclient;
 
-import com.biger.client.BigerResponseException;
-import com.biger.client.internal.HttpOps;
-import com.biger.client.internal.HttpOpsBuilder;
-import com.biger.client.internal.Pool;
-import com.biger.client.internal.Utils;
+import com.biger.client.httpops.HttpOps;
+import com.biger.client.httpops.HttpOpsBuilder;
+import com.biger.client.httpops.Utils;
 
 import javax.crypto.Cipher;
 import java.net.URI;
@@ -47,27 +45,25 @@ public class HttpClientOpsBuilder implements HttpOpsBuilder {
 
         return new HttpOps() {
             @Override
-            public CompletableFuture<String> sendAsync(URI uri, String accessToken, Pool<Cipher> encryptors, String method, String queryString, long expiry, String body, Duration timeout) {
-                HttpRequest req = encryptors.borrowAndApply(c -> {
+            public CompletableFuture<String> sendAsync(URI uri, String accessToken, Cipher c, String method, String queryString, long expiry, String body, Duration timeout) {
+                HttpRequest.Builder b = HttpRequest.newBuilder()
+                        .uri(uri)
+                        .header("BIGER-REQUEST-EXPIRY", expiry + "")
+                        .header("BIGER-ACCESS-TOKEN", accessToken)
+                        .header("BIGER-REQUEST-HASH", Utils.requestHash(c, method, queryString, expiry, body))
+                        .timeout(Duration.ofSeconds(5));
+                if (body == null) {
+                    b = b.method(method, HttpRequest.BodyPublishers.noBody());
+                } else {
+                    b = b.method(method, HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
+                            .header("content-type", "application/json");
+                }
+                HttpRequest req = b.build();
 
-                    HttpRequest.Builder b = HttpRequest.newBuilder()
-                            .uri(uri)
-                            .header("BIGER-REQUEST-EXPIRY", expiry + "")
-                            .header("BIGER-ACCESS-TOKEN", accessToken)
-                            .header("BIGER-REQUEST-HASH", Utils.requestHash(c, method, queryString, expiry, body))
-                            .timeout(Duration.ofSeconds(5));
-                    if (body == null) {
-                        b = b.method(method, HttpRequest.BodyPublishers.noBody());
-                    } else {
-                        b = b.method(method, HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
-                                .header("content-type", "application/json");
-                    }
-                    return b.build();
-                });
                 return httpClient.sendAsync(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
                     .thenApply(resp->{
                         if (resp.statusCode() != 200) {
-                                throw new BigerResponseException("non 200 response", resp.statusCode(), resp.body());
+                                throw new RuntimeException("non 200 response");
                         }
                         return resp;
                     })

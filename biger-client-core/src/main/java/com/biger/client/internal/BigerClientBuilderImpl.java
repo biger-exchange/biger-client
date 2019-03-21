@@ -3,6 +3,10 @@ package com.biger.client.internal;
 import com.biger.client.BigerClient;
 import com.biger.client.OrderClient;
 import com.biger.client.SymbolClient;
+import com.biger.client.httpops.HttpOps;
+import com.biger.client.httpops.HttpOpsBuilder;
+import com.biger.client.httpops.Pool;
+import com.biger.client.httpops.State;
 
 import javax.crypto.Cipher;
 import javax.crypto.NoSuchPaddingException;
