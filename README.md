@@ -21,6 +21,11 @@ the binary artifacts are released at maven repo https://biger-exchange.github.io
    - many concurrent http requests can share the same thread or threads(we allow executor configurability)
  * HttpURLConnection means synchronous http requests, and one thread for every concurrent request
 
+## tool for generating key pair to use for application of api access token
+One of the requirements to apply for api access token is for you to generate your own RSA key pair, and provide the public key to biger exchange. Our client provides such API to generate the key pair for you if you wish.
+
+[Example to generate RSA key pair](biger-client-examples/src/main/java/com/biger/client/examples/GenerateKeyPair.java)
+
 ## immediate roadmap plan
 * websocket market data
 * websocket order change subscription
