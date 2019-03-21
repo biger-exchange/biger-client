@@ -1,7 +1,7 @@
 # biger-client
-java client
+java client for transactions on BIGER exchange.
+Requires application of an API access token - details at https://github.com/biger-exchange/biger-api-doc
 
-pre-release condition for the moment, use at your own risk
 
 ## immediate roadmap plan
 * java 8 support
