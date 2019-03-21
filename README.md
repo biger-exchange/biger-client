@@ -3,8 +3,10 @@ java client for transactions on BIGER exchange.
 Requires application of an API access token - details at https://github.com/biger-exchange/biger-api-doc
 
 ## maven repo
-the binary artifacts are released at maven repo https://biger-exchange.github.io/biger-client/
+the binary artifacts are released at maven repo https://biger-exchange.github.io/biger-client/.
+
 [gradle build.xml example for java 11](biger-client-examples/build.gradle)
+
 [gradle build.xml example for java 8](biger-client-examples/build.gradle.java8)
 
 ## examples
