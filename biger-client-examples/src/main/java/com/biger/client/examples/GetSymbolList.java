@@ -4,6 +4,7 @@ import com.biger.client.BigerClient;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 
 /**
  * Fill in the section denoted by ***INPUT PARAMETERS*** with appropriate values before proceeding
@@ -14,7 +15,7 @@ public class GetSymbolList {
 
         // ***INPUT PARAMETERS*** {
         String accessToken = "test2";
-        byte[] privateKey = Files.readAllBytes(Path.of(
+        byte[] privateKey = Files.readAllBytes(Paths.get(
                 System.getProperty("user.home"),
                 "privateKey"
         ));
