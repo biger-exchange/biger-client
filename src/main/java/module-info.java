@@ -6,4 +6,7 @@ module BigerClient {
 
     exports com.biger.client;
     exports com.biger.client.util;
+
+    uses com.biger.client.internal.HttpOpsBuilder;
+    provides com.biger.client.internal.HttpOpsBuilder with com.biger.client.internal.httpclient.HttpClientOpsBuilder;
 }

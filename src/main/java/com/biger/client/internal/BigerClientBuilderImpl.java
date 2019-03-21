@@ -6,7 +6,6 @@ import com.biger.client.SymbolClient;
 
 import javax.crypto.Cipher;
 import javax.crypto.NoSuchPaddingException;
-import java.net.http.HttpClient;
 import java.security.*;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
@@ -79,16 +78,12 @@ public class BigerClientBuilderImpl implements BigerClient.Builder {
             }
         };
 
-        HttpClient.Builder httpClientBuilder = HttpClient.newBuilder()
-                .version(HttpClient.Version.HTTP_1_1)
-                .connectTimeout(Duration.ofSeconds(5));
+        HttpOps httpOps = HttpOpsBuilder.newBuilder()
+                .connectionTimeout(Duration.ofSeconds(5))
+                .executor(executor)
+                .build();
 
-        if (executor != null) {
-            httpClientBuilder = httpClientBuilder.executor(executor);
-        }
-        HttpClient httpClient = httpClientBuilder.build();
-
-        State s = new State(httpClient, url, accessToken, encryptors);
+        State s = new State(httpOps, url, accessToken, encryptors);
         SymbolClientImpl symbolClient = new SymbolClientImpl(s);
         OrderClientImpl orderClient = new OrderClientImpl(s);
 

@@ -5,7 +5,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-abstract class Pool<T> {
+public abstract class Pool<T> {
 
     final LinkedBlockingQueue<T> objects;
 

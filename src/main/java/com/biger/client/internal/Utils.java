@@ -14,8 +14,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -23,7 +21,7 @@ import java.time.Duration;
 import java.util.Base64;
 import java.util.concurrent.CompletableFuture;
 
-interface Utils {
+public interface Utils {
 
     ObjectMapper m = new ObjectMapper().disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
@@ -55,38 +53,20 @@ interface Utils {
         }
     }
 
-
-
     static <T> CompletableFuture<BigerResponse<T>> req(State s, String path, String queryString, String method, String body, TypeReference<BigerResponse<T>> typeReference) {
         URI uri = Utils.newUriUnchecked(s.url, path);
 
         long expiry = System.currentTimeMillis() + 10000;
 
-        HttpRequest req = s.encryptors.borrowAndApply(c-> {
-
-            HttpRequest.Builder b = HttpRequest.newBuilder()
-                    .uri(uri)
-                    .header("BIGER-REQUEST-EXPIRY", expiry + "")
-                    .header("BIGER-ACCESS-TOKEN", s.accessToken)
-                    .header("BIGER-REQUEST-HASH", Utils.requestHash(c, method, queryString, expiry, body))
-                    .timeout(Duration.ofSeconds(5));
-            if (body == null) {
-                b = b.method(method, HttpRequest.BodyPublishers.noBody());
-            } else {
-                b = b.method(method, HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
-                        .header("content-type", "application/json");
-            }
-            return b.build();
-        });
-
-        return s.httpClient.sendAsync(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
-                .thenApply(resp->{
-                    if (resp.statusCode() != 200) {
-                            throw new BigerResponseException("non 200 response", resp.statusCode(), resp.body());
-                    }
-                    return resp;
-                })
-                .thenApply(HttpResponse::body)
+        return s.httpOps.sendAsync(
+                uri,
+                s.accessToken,
+                s.encryptors,
+                method,
+                queryString,
+                expiry,
+                body,
+                Duration.ofSeconds(10L))
                 .thenApply(pl->{
                     BigerResponse<T> resp;
                     try {
