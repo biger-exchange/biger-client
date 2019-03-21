@@ -13,8 +13,13 @@ the binary artifacts are released at maven repo https://biger-exchange.github.io
 [example project](biger-client-examples)
 
 ## java 11 vs java 8
-We offer users the option of java 8 or java 11 compatibility.
-We recommend the java 11 compatible version as long as you can use it, as it uses jdk11+ HttpClient to execute Http requests instead of HttpURLConnection. One difference is that HttpClient supports NIO and async requests, where many concurrent http requests can share the same thread or threads(we allow executor configurability). However, HttpURLConnection means sync http requests, and one thread for every concurrent request.
+ * We offer users the option of java 8 or java 11 compatibility.
+ * We recommend the java 11 compatible version as long as you can use it
+ * java 11 compatible release  uses jdk11+ HttpClient to execute http requests
+ * java 8 compatible release uses HttpURLConnection to execute http requests
+ * HttpClient supports NIO and async requests
+   - many concurrent http requests can share the same thread or threads(we allow executor configurability)
+ * HttpURLConnection means synchronous http requests, and one thread for every concurrent request
 
 ## immediate roadmap plan
 * websocket market data
