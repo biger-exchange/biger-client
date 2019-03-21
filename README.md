@@ -19,7 +19,7 @@ to use in your maven pom,
 
 <dependency>
     <groupId>com.biger</groupId>
-    <artifactId>biger.client</artifactId>
+    <artifactId>biger-client</artifactId>
     <version>1.0</version>
 </dependency>
 ```
@@ -36,3 +36,6 @@ to use in your maven pom,
 * consider bigdecimal instead of string for fields like price, qty
 * consider enums for well known field values - but also consider case where new field value possibilities are added in future
 * consider sync client for people who dont care for async (or just advise them to call .get on future)
+
+## examples
+[examples](src/main/java/com/biger/client/example)
