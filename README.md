@@ -2,6 +2,27 @@
 java client for transactions on BIGER exchange.
 Requires application of an API access token - details at https://github.com/biger-exchange/biger-api-doc
 
+## maven repo
+the binary artifacts are released at maven repo https://biger-exchange.github.io/biger-client/
+```
+group：     com.biger
+artifactId: biger-client
+version:    1.0
+```
+to use in your maven pom, 
+```
+<repository>
+  <id>biger</id>
+  <name>biger</name>
+  <url>https://biger-exchange.github.io/biger-client/</url>
+</repository>
+
+<dependency>
+    <groupId>com.biger</groupId>
+    <artifactId>biger.client</artifactId>
+    <version>1.0</version>
+</dependency>
+```
 
 ## immediate roadmap plan
 * java 8 support
