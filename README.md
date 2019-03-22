@@ -26,6 +26,10 @@ One of the requirements to apply for api access token is for you to generate you
 
 [Example to generate RSA key pair](biger-client-examples/src/main/java/com/biger/client/examples/GenerateKeyPair.java)
 
+## websocket react api for market data
+This is available now in a beta state, we expect some reorganization of the code and changes to the general APIs.
+Also, it is not yet integrated neatly with our main client API.
+
 ## immediate roadmap plan
 * websocket market data
 * websocket order change subscription

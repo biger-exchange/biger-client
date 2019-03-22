@@ -2,4 +2,5 @@ include 'biger-client-httpops'
 include 'biger-client-core'
 include 'biger-client-httpops-httpclient'
 include 'biger-client-httpops-httpurlconnection'
+include 'biger-client-ws-react'
 
