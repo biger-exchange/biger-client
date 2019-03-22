@@ -12,6 +12,6 @@ repositories {
 }
 
 dependencies {
-    compile 'com.biger:biger-client-core:2.0'
-    compile 'com.biger:biger-client-httpops-httpurlconnection:2.0'
+    compile group: "com.biger", name: "biger-client-core", version: bigerClientVersion
+    compile group: "com.biger", name: "biger-client-httpops-httpurlconnection", version: bigerClientVersion
 }

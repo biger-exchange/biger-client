@@ -2,6 +2,8 @@ package com.biger.client;
 
 import com.biger.client.internal.BigerClientBuilderImpl;
 
+import java.time.Clock;
+import java.time.Duration;
 import java.util.concurrent.Executor;
 
 public interface BigerClient {
@@ -17,6 +19,10 @@ public interface BigerClient {
         Builder privateKey(byte[] privateKey);
         Builder url(String url);
         Builder executor(Executor executor);
+        Builder clock(Clock c);
+        Builder expiryLeeway(Duration expiryLeeway);
+        Builder connectionTimeout(Duration connectionTimeout);
+
         BigerClient build();
     }
 

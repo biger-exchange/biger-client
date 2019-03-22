@@ -15,11 +15,11 @@ public interface OrderClient {
         public String symbol;
         public String orderType;
         public String orderState;
-        public String price;
-        public String orderQty;
-        public String filledQty;
-        public String totalPrice;
-        public String fee;
+        public BigDecimal price;
+        public BigDecimal orderQty;
+        public BigDecimal filledQty;
+        public BigDecimal totalPrice;
+        public BigDecimal fee;
         public long userId;
         public int tradesCount;
         public long createTime;

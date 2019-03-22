@@ -53,7 +53,7 @@ public interface Utils {
     static <T> CompletableFuture<BigerResponse<T>> req(State s, String path, String queryString, String method, String body, TypeReference<BigerResponse<T>> typeReference) {
         URI uri = Utils.newUriUnchecked(s.url, path);
 
-        long expiry = System.currentTimeMillis() + 10000;
+        long expiry = s.clock.millis() + s.expiryLeewayMillis;
 
         return s.encryptors.borrowAndApply(c->{
             return s.httpOps.sendAsync(

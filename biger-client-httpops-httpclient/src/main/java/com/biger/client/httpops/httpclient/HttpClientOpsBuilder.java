@@ -1,5 +1,6 @@
 package com.biger.client.httpops.httpclient;
 
+import com.biger.client.httpops.BigerResponseException;
 import com.biger.client.httpops.HttpOps;
 import com.biger.client.httpops.HttpOpsBuilder;
 import com.biger.client.httpops.Utils;
@@ -63,7 +64,7 @@ public class HttpClientOpsBuilder implements HttpOpsBuilder {
                 return httpClient.sendAsync(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
                     .thenApply(resp->{
                         if (resp.statusCode() != 200) {
-                                throw new RuntimeException("non 200 response");
+                                throw new BigerResponseException("non 200 response", resp.statusCode(), resp.body());
                         }
                         return resp;
                     })

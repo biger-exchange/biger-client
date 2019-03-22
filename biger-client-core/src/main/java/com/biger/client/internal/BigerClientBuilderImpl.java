@@ -13,6 +13,7 @@ import javax.crypto.NoSuchPaddingException;
 import java.security.*;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.time.Clock;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.Executor;
@@ -21,6 +22,9 @@ public class BigerClientBuilderImpl implements BigerClient.Builder {
     String accessToken;
     String url;
     byte[] privateKey;
+    Clock clock = Clock.systemUTC();
+    Duration connectionTimeout = Duration.ofSeconds(5);
+    Duration expiryLeeway = Duration.ofSeconds(10);
 
     Executor executor;
 
@@ -45,6 +49,24 @@ public class BigerClientBuilderImpl implements BigerClient.Builder {
     @Override
     public BigerClient.Builder executor(Executor executor) {
         this.executor = executor;
+        return this;
+    }
+
+    @Override
+    public BigerClient.Builder clock(Clock c) {
+        this.clock = Objects.requireNonNull(c);
+        return this;
+    }
+
+    @Override
+    public BigerClient.Builder expiryLeeway(Duration expiryLeeway) {
+        this.expiryLeeway = Objects.requireNonNull(expiryLeeway);
+        return this;
+    }
+
+    @Override
+    public BigerClient.Builder connectionTimeout(Duration connectionTimeout) {
+        this.connectionTimeout = Objects.requireNonNull(connectionTimeout);
         return this;
     }
 
@@ -83,11 +105,11 @@ public class BigerClientBuilderImpl implements BigerClient.Builder {
         };
 
         HttpOps httpOps = HttpOpsBuilder.newBuilder()
-                .connectionTimeout(Duration.ofSeconds(5))
+                .connectionTimeout(connectionTimeout)
                 .executor(executor)
                 .build();
 
-        State s = new State(httpOps, url, accessToken, encryptors);
+        State s = new State(httpOps, url, accessToken, encryptors, clock, expiryLeeway.getNano() / 1000L);
         SymbolClientImpl symbolClient = new SymbolClientImpl(s);
         OrderClientImpl orderClient = new OrderClientImpl(s);
 
