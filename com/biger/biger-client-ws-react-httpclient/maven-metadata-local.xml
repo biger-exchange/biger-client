@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <metadata>
   <groupId>com.biger</groupId>
-  <artifactId>biger-client-httpops-httpclient</artifactId>
+  <artifactId>biger-client-ws-react-httpclient</artifactId>
   <versioning>
     <release>2.2.0</release>
     <versions>
