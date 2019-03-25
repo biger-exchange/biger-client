@@ -2,15 +2,20 @@ plugins {
     id 'java'
 }
 
-sourceCompatibility = 11
-targetCompatibility = 11
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
 
 dependencies {
+    api project(":biger-client-ws-react")
+
     compileOnly 'org.projectlombok:lombok:1.18.4'
     annotationProcessor 'org.projectlombok:lombok:1.18.4'
 
-    api 'io.projectreactor:reactor-core:3.2.0.RELEASE'
-
-    implementation 'com.fasterxml.jackson.core:jackson-databind:2.9.8'
+    implementation 'io.netty:netty-all:4.1.32.Final'
     implementation 'org.slf4j:slf4j-api:1.7.25'
 }
