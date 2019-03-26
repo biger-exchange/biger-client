@@ -4,19 +4,13 @@ import com.biger.client.ws.react.domain.response.ExchangeResponse;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.time.Duration;
 import java.util.ServiceLoader;
 
 public interface Client {
-    void schedulePing(Duration pingInterval);
 
-    Mono<Integer> start();
+    void stop();
 
-    Flux<ExchangeResponse> wildMessages();
-
-    Flux<String> unparsedMessages();
-
-    Mono<ExchangeResponse> expectAck(String requsetId);
+    Mono<ExchangeResponse> expectAck(String requestId);
 
     Mono<ExchangeResponse> requestSingle(String requestId, String requestMsg);
 
@@ -25,6 +19,4 @@ public interface Client {
     static ClientBuilder newBuilder() {
         return ServiceLoader.load(ClientBuilder.class).iterator().next();
     }
-
-    Mono<Integer> stop();
 }
