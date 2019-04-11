@@ -7,6 +7,7 @@ import com.biger.client.httpops.Utils;
 
 import javax.crypto.Cipher;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -47,12 +48,24 @@ public class HttpClientOpsBuilder implements HttpOpsBuilder {
         return new HttpOps() {
             @Override
             public CompletableFuture<String> sendAsync(URI uri, String accessToken, Cipher c, String method, String queryString, long expiry, String body, Duration timeout) {
+
+                URI withQuery = null;
+                try {
+                    withQuery = new URI(uri.getScheme(), uri.getUserInfo(), uri.getHost(), uri.getPort(), uri.getPath(), queryString, uri.getFragment());
+                } catch (URISyntaxException e1) {
+                    throw new RuntimeException(e1);
+                }
+
                 HttpRequest.Builder b = HttpRequest.newBuilder()
-                        .uri(uri)
-                        .header("BIGER-REQUEST-EXPIRY", expiry + "")
-                        .header("BIGER-ACCESS-TOKEN", accessToken)
-                        .header("BIGER-REQUEST-HASH", Utils.requestHash(c, method, queryString, expiry, body))
+                        .uri(withQuery)
                         .timeout(Duration.ofSeconds(5));
+
+                if(accessToken != null) {
+                    b = b.header("BIGER-REQUEST-EXPIRY", expiry + "")
+                        .header("BIGER-ACCESS-TOKEN", accessToken)
+                        .header("BIGER-REQUEST-HASH", Utils.requestHash(c, method, queryString, expiry, body));
+                }
+
                 if (body == null) {
                     b = b.method(method, HttpRequest.BodyPublishers.noBody());
                 } else {

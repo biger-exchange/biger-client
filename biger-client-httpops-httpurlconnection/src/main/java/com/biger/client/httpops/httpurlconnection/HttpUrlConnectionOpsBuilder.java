@@ -67,9 +67,12 @@ public class HttpUrlConnectionOpsBuilder implements HttpOpsBuilder {
                     f.completeExceptionally(e);
                     return f;
                 }
-                conn.setRequestProperty("BIGER-REQUEST-EXPIRY", expiry + "");
-                conn.setRequestProperty("BIGER-ACCESS-TOKEN", accessToken);
-                conn.setRequestProperty("BIGER-REQUEST-HASH", Utils.requestHash(c, method, queryString, expiry, body));
+
+                if (accessToken != null) {
+                    conn.setRequestProperty("BIGER-REQUEST-EXPIRY", expiry + "");
+                    conn.setRequestProperty("BIGER-ACCESS-TOKEN", accessToken);
+                    conn.setRequestProperty("BIGER-REQUEST-HASH", Utils.requestHash(c, method, queryString, expiry, body));
+                }
 
                 if (body != null) {
                     conn.setRequestProperty("content-type", "application/json");

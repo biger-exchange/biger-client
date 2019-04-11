@@ -8,6 +8,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -36,13 +37,20 @@ public class OrderClientImpl implements OrderClient {
     public CompletableFuture<OrderInfo> createLimitOrder(String symbol, boolean isBuy, BigDecimal unitPrice, BigDecimal qty) {
         String body = null;
         try {
-            body = Utils.m.writeValueAsString(Map.of(
-                    "symbol", symbol,
-                    "side", isBuy? "BUY": "SELL",
-                    "price", unitPrice.toPlainString(),
-                    "orderQty", qty.toPlainString(),
-                    "orderType", "LIMIT"
-            ));
+            Map<String, String> m = new HashMap<>();
+            m.put("symbol", symbol);
+            m.put("side", isBuy? "BUY": "SELL");
+            m.put("price", unitPrice.toPlainString());
+            m.put("orderQty", qty.toPlainString());
+            m.put("orderType", "LIMIT");
+            body = Utils.m.writeValueAsString(m);
+//            body = Utils.m.writeValueAsString(Map.of(
+//                    "symbol", symbol,
+//                    "side", isBuy? "BUY": "SELL",
+//                    "price", unitPrice.toPlainString(),
+//                    "orderQty", qty.toPlainString(),
+//                    "orderType", "LIMIT"
+//            ));
         } catch (JsonProcessingException e) {
             throw new IllegalArgumentException("Error serializing request body", e);
         }
