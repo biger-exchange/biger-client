@@ -2,6 +2,7 @@ package com.biger.client.httpops;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import javax.crypto.BadPaddingException;
@@ -87,6 +88,29 @@ public interface Utils {
                     });
         });
 
+    }
+
+    static CompletableFuture<JsonNode> reqGeneric(State s, String path, String queryString, String method, String body) {
+        URI uri = Utils.newUriUnchecked(s.url, path);
+
+        long expiry = s.clock.millis() + s.expiryLeewayMillis;
+
+        return s.encryptors.borrowAndApply(c-> s.httpOps.sendAsync(
+                uri,
+                s.accessToken,
+                c,
+                method,
+                queryString,
+                expiry,
+                body,
+                Duration.ofSeconds(10L))
+                .thenApply(pl-> {
+                    try {
+                        return m.readTree(pl);
+                    } catch (IOException e) {
+                        throw new BigerResponseException("error while parsing response body", e);
+                    }
+                }));
     }
 
     static String encodePath(String source) {

@@ -15,4 +15,10 @@ public class BigerResponseException extends RuntimeException {
         statusCode = 0;
         respBody = "";
     }
+
+    public BigerResponseException(String message) {
+        super(message);
+        statusCode = 0;
+        respBody = "";
+    }
 }

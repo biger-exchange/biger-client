@@ -73,36 +73,51 @@ public class BigerClientBuilderImpl implements BigerClient.Builder {
     @Override
     public BigerClient build() {
 
-        String accessToken = Objects.requireNonNull(this.accessToken);
+        String accessToken = this.accessToken;
         String url = Objects.requireNonNull(this.url);
         Executor executor = this.executor;
 
-        PrivateKey privateKey;
-        try {
-            privateKey = KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(this.privateKey));
-        } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
+        Pool<Cipher> encryptors;
+
+        if (this.privateKey == null) {
+            encryptors = new Pool<Cipher>() {
+                @Override
+                protected Cipher newObject() {
+                    try {
+                        return Cipher.getInstance("RSA");
+                    } catch (NoSuchAlgorithmException | NoSuchPaddingException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            };
+        } else {
+            PrivateKey privateKey;
+            try {
+                privateKey = KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(this.privateKey));
+            } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
+                throw new RuntimeException(e);
+            }
+
+            encryptors = new Pool<Cipher>() {
+                @Override
+                protected Cipher newObject() {
+                    try {
+                        return Cipher.getInstance("RSA");
+                    } catch (NoSuchAlgorithmException | NoSuchPaddingException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+
+                @Override
+                protected void prepareObject(Cipher cipher) {
+                    try {
+                        cipher.init(Cipher.ENCRYPT_MODE, privateKey, new SecureRandom());
+                    } catch (InvalidKeyException e) {
+                        throw new IllegalStateException(e);
+                    }
+                }
+            };
         }
-
-        Pool<Cipher> encryptors = new Pool<Cipher>() {
-            @Override
-            protected Cipher newObject() {
-                try {
-                    return Cipher.getInstance("RSA");
-                } catch (NoSuchAlgorithmException | NoSuchPaddingException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-
-            @Override
-            protected void prepareObject(Cipher cipher) {
-                try {
-                    cipher.init(Cipher.ENCRYPT_MODE, privateKey, new SecureRandom());
-                } catch (InvalidKeyException e) {
-                    throw new IllegalStateException(e);
-                }
-            }
-        };
 
         HttpOps httpOps = HttpOpsBuilder.newBuilder()
                 .connectionTimeout(connectionTimeout)
