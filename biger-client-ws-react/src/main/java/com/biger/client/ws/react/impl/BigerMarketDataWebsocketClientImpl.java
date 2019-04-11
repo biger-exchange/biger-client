@@ -18,6 +18,7 @@ import reactor.core.publisher.Mono;
 import java.net.URI;
 import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class BigerMarketDataWebsocketClientImpl implements BigerMarketDataWebsocketClient {
@@ -28,8 +29,6 @@ public class BigerMarketDataWebsocketClientImpl implements BigerMarketDataWebsoc
     final private ObjectMapper objectMapper = BigerMarketReponseParser.INSTANCE.getObjectMapper();
 
     final private AtomicInteger requestCounter = new AtomicInteger(0);
-
-    final private Duration pingInterval = Duration.ofSeconds(15);
 
     final private BigerMarketReponseParser bigerMarketReponseParser = BigerMarketReponseParser.INSTANCE;
 
@@ -43,39 +42,16 @@ public class BigerMarketDataWebsocketClientImpl implements BigerMarketDataWebsoc
     }
 
     public BigerMarketDataWebsocketClientImpl(URI address) {
-        jsonWebSocketClient = Client.newBuilder()
-                .uri(address)
-                .text2Response(bigerMarketReponseParser::text2ExchangeResponse)
-                .response2SubId(bigerMarketReponseParser::extractSubIdFromExchangeResponse)
-                .build();
-    }
-
-    @Override
-    public CountDownLatch start() {
-        CountDownLatch cdl = new CountDownLatch(1);
-        this.jsonWebSocketClient.start()
-                .subscribe(x -> {
-                    if (x != 1) {
-                        return;
-                    }
-                    LOG.debug("json websocket client started ", x);
-
-                    this.schedulerForPing();
-
-                    this.jsonWebSocketClient.wildMessages().subscribe(t -> {
-                        LOG.warn("Got unkown message [{}]", t);
-                    });
-                    this.jsonWebSocketClient.unparsedMessages().subscribe(t -> {
-                        LOG.warn("Got unparsed message [{}]", t);
-                    });
-                    cdl.countDown();
-                });
-        return cdl;
-    }
-
-    private void schedulerForPing() {
-        this.jsonWebSocketClient.schedulePing(pingInterval);
-
+        try {
+            jsonWebSocketClient = Client.newBuilder()
+                    .uri(address)
+                    .text2Response(bigerMarketReponseParser::text2ExchangeResponse)
+                    .response2SubId(bigerMarketReponseParser::extractSubIdFromExchangeResponse)
+                    .build()
+                    .get();
+        } catch (InterruptedException | ExecutionException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private Flux<ExchangeResponse> doSub(BigerMarketEventType subType, String key, Object subRequest, Object unSubRequest) {
@@ -173,10 +149,6 @@ public class BigerMarketDataWebsocketClientImpl implements BigerMarketDataWebsoc
 
     @Override
     public void close() {
-        this.jsonWebSocketClient.stop().subscribe(x -> {
-            if (x == 1) {
-                LOG.debug("stopped");
-            }
-        });
+        this.jsonWebSocketClient.stop();
     }
 }

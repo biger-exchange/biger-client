@@ -11,8 +11,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public interface BigerMarketDataWebsocketClient extends AutoCloseable {
 
-    CountDownLatch start();
-
     Flux<BigerMarketDepthEvent> subMarketDepth(String symbol, int limit, String interval);
 
     Flux<BigerSymbolPriceEvent> subSymbolPrice(String symbol);

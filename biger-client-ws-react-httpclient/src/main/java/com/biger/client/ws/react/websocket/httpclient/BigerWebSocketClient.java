@@ -3,8 +3,6 @@ package com.biger.client.ws.react.websocket.httpclient;
 
 import com.biger.client.ws.react.domain.response.ExchangeResponse;
 import com.biger.client.ws.react.websocket.Client;
-import lombok.Getter;
-import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
@@ -22,10 +20,9 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 
 @SuppressWarnings({"unsafe", "unchecked"})
@@ -38,19 +35,12 @@ public class BigerWebSocketClient implements Client {
 
     static final Duration DEFAULT_RETRY_TIMEOUT = Duration.ofSeconds(2);
 
-    @Getter
-    private final int maxFrameSize;
-
-    @Getter
     private final Duration connectTimeout;
-
-    private boolean connectedSuccessfully = false;
 
     private final Function<String, ExchangeResponse> text2MessageConvertorFunc;
 
     private final Function<ExchangeResponse, String> msgIdExtractorFunc;
 
-    @Getter
     private final Duration retryTimeout;
 
     // for push update
@@ -61,66 +51,51 @@ public class BigerWebSocketClient implements Client {
     // for requestSingle
     private final ConcurrentMap<String, MonoSink> ackSinkMap = new ConcurrentHashMap<>();
 
-    private AtomicBoolean started = new AtomicBoolean(false);
-
-    private boolean isManualDisconnect = false;
-
-    @Getter
     final private URI wsUri;
-
-    private FluxSink<ExchangeResponse> unkonwMessageEmitter;
-
-    private FluxSink<String> unparsedMsgEmitter;
-
-    private final Flux<String> unparsedMsgFlux;
-
-    private final Flux<ExchangeResponse> unkonwMessageFlux;
 
     private final ConcurrentHashMap<String, Lock> locks = new ConcurrentHashMap<>();
 
     final Timer t = new Timer();
+    final TimerTask pingTask = new TimerTask() {
+        @Override
+        public void run() {
+            try {
+                ping();
+            } catch (IOException e) {
+                LOG.warn("ping failed", e);
 
-    @Setter
-    private boolean acceptAllCertificates;
+            } catch (NullPointerException e) {}
+        }
+    };
 
     volatile WebSocket ws;
+    final Lock wsLock = new ReentrantLock();
+    volatile boolean stopped = false;
 
-    public BigerWebSocketClient(URI address, Function<String, ExchangeResponse> text2MsgFunc, Function<ExchangeResponse, String> msg2SubIdFunc) {
+    final Handler handler = new Handler(msg->onMessageReceived(msg), t-> {
+        wsLock.lock();
+        ws = null;
+        wsLock.unlock();
+    });
+
+    private BigerWebSocketClient(URI address, Function<String, ExchangeResponse> text2MsgFunc, Function<ExchangeResponse, String> msg2SubIdFunc) {
         this(address, text2MsgFunc, msg2SubIdFunc, DEFAULT_MAX_FRAME_SIZE, DEFAULT_CONNECT_TIMEOUT, DEFAULT_RETRY_TIMEOUT);
     }
 
-    public BigerWebSocketClient(URI address, Function<String, ExchangeResponse> text2MsgFunc, Function<ExchangeResponse, String> msg2SubIdFunc, int maxFramePayload, Duration connectionTimeout, Duration retryTimeout) {
+    private BigerWebSocketClient(URI address, Function<String, ExchangeResponse> text2MsgFunc, Function<ExchangeResponse, String> msg2SubIdFunc, int maxFramePayload, Duration connectionTimeout, Duration retryTimeout) {
         this.wsUri = address;
 
         this.text2MessageConvertorFunc = text2MsgFunc;
         this.msgIdExtractorFunc = msg2SubIdFunc;
-        this.maxFrameSize = maxFramePayload;
         this.connectTimeout = connectionTimeout;
         this.retryTimeout = retryTimeout;
 
-        this.unkonwMessageFlux = Flux.create(emitter -> {
-            this.unkonwMessageEmitter = emitter;
-        }, FluxSink.OverflowStrategy.LATEST);
-        this.unkonwMessageFlux.subscribe();
-
-        this.unparsedMsgFlux = Flux.<String>create(sink -> {
-            this.unparsedMsgEmitter = sink;
-        }, FluxSink.OverflowStrategy.LATEST);
-        this.unparsedMsgFlux.subscribe();
     }
 
-    @Override
-    public void schedulePing(Duration pingInterval) {
-        t.schedule(new TimerTask() {
-            @Override
-            public void run() {
-                try {
-                    ping();
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-        }, 0L, pingInterval.toNanos() / 1000L);
+    static CompletableFuture<BigerWebSocketClient> build(URI address, Function<String, ExchangeResponse> text2MsgFunc, Function<ExchangeResponse, String> msg2SubIdFunc) {
+        BigerWebSocketClient c = new BigerWebSocketClient(address, text2MsgFunc, msg2SubIdFunc);
+        c.t.schedule(c.pingTask, 0L, 15000L);
+        return CompletableFuture.completedFuture(c);
     }
 
     static class Subscription {
@@ -137,61 +112,45 @@ public class BigerWebSocketClient implements Client {
         }
     }
 
-    @Override
-    public Mono<Integer> start() {
-        if (!this.started.compareAndSet(false, true)) {
-            return Mono.just(0);
+    private WebSocket ws() {
+        WebSocket ws = this.ws;
+        if (ws != null) return ws;
+
+        if (stopped) throw new IllegalStateException("already stopped");
+
+        wsLock.lock();
+        try {
+            while (true) { // TODO - notify app of connection issues if this takes too long
+                try {
+                    this.ws = connect().get();
+                    for (Map.Entry<String, Subscription> x : this.subIdMap.entrySet()) {
+                        try {
+                            sendMessage(x.getValue().subRequest);
+                        } catch (Exception ex) {
+                            LOG.warn("Failed to resub for [{}]", x.getValue(), ex);
+                        }
+                    }
+                    return this.ws;
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException(e);
+                } catch (ExecutionException e) {
+                    LOG.error("error connecting ws", e);
+                }
+            }
+        } finally {
+            wsLock.unlock();
         }
-        return doStart();
     }
 
-    public Mono<Integer> doStart() {
+    private CompletableFuture<WebSocket> connect() {
 
         HttpClient c = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(5))
+                .connectTimeout(connectTimeout)
                 .build();
 
-        Handler h = new Handler(msg->onMessageReceived(msg));
-
-        CompletableFuture<WebSocket> f = c.newWebSocketBuilder()
-                .buildAsync(wsUri, h);
-
-        return Mono.create(sink-> f.whenComplete((webSocket, throwable) -> {
-            if (throwable == null) {
-                ws = webSocket;
-                sink.success(1);
-                return;
-            }
-            sink.error(throwable);
-        }));
-
-    }
-
-    static private int extractPort(URI uri) {
-        int port = uri.getPort();
-        if (port != -1) {
-            return port;
-        }
-
-        String scheme = uri.getScheme();
-        if ("ws".equalsIgnoreCase(scheme)) {
-            return 80;
-        }
-        if ("wss".equalsIgnoreCase(scheme)) {
-            return 443;
-        }
-
-        throw new IllegalStateException("Only websocket scheme supported, uri started with ws(s)://");
-    }
-
-    @Override
-    public Flux<ExchangeResponse> wildMessages() {
-        return this.unkonwMessageFlux.share();
-    }
-
-    @Override
-    public Flux<String> unparsedMessages() {
-        return this.unparsedMsgFlux.share();
+        return c.newWebSocketBuilder()
+                .buildAsync(wsUri, handler);
     }
 
     private void onMessageReceived(CharSequence cs) {
@@ -200,14 +159,12 @@ public class BigerWebSocketClient implements Client {
         ExchangeResponse msg = Optional.ofNullable(text).map(this.text2MessageConvertorFunc).orElse(null);
         if (msg == null) {
             LOG.warn("Failed to parse message [{}]", text);
-            this.unparsedMsgEmitter.next(text);
             return;
         }
 
         String subId = Optional.ofNullable(msg).map(this.msgIdExtractorFunc).orElse(null);
         if (subId == null) {
             LOG.warn("Failed to extract sub id from message");
-            this.unkonwMessageEmitter.next(msg);
             return;
         }
         this.dispatchMessage(subId, msg);
@@ -225,23 +182,14 @@ public class BigerWebSocketClient implements Client {
                 .filter(Objects::nonNull)
                 .map(x -> x.fluxSink.next(message)).isPresent()) {
             LOG.warn("Failed to find receivers for sub id [{}]", subId);
-            this.unkonwMessageEmitter.next(message);
-        }
-    }
-
-    private void ensureSocketReady() throws IOException {
-        if (this.ws == null || ws.isInputClosed()|| ws.isOutputClosed()) {
-            LOG.warn("WebSocket is not open! Call connect first.");
-            throw new IOException("Websocket is not connected yet");
         }
     }
 
     public void sendMessage(String message) throws IOException {
         LOG.debug("Sending message: {}", message);
-        this.ensureSocketReady();
 
         if (message != null) {
-            ws.sendText(message, true).join();
+            ws().sendText(message, true).join();
         }
     }
 
@@ -288,23 +236,19 @@ public class BigerWebSocketClient implements Client {
         });
     }
 
-    public void addAckMonoSink(String requestId, MonoSink<ExchangeResponse> monoSink) {
-        this.ackSinkMap.putIfAbsent(requestId, monoSink);
-    }
-
-    public Mono<Integer> stop() {
-        if (!this.started.compareAndSet(true,false)) {
-            return Mono.just(0);
-        }
-
-        isManualDisconnect = true;
-        connectedSuccessfully = false;
-        return Mono.create(sink -> {
-            if (ws != null) {
+    @Override
+    public void stop() {
+        if (!stopped) {
+            try {
                 ws.abort();
+            } catch (NullPointerException e) {
+                // fine
             }
-            t.cancel();
-        });
+            finally {
+                pingTask.cancel();
+                t.cancel();
+            }
+        }
     }
 
     @Override
@@ -354,27 +298,11 @@ public class BigerWebSocketClient implements Client {
         }
     }
 
-    public Flux<ExchangeResponse> sub(String subId, BiFunction<String, Object[], String> requestMsgFunc, Object[] args, BiFunction<String, Object[], String> unSubRequestMsgFunc, FluxSink.OverflowStrategy overflowStrategy) {
-        return this.sub(subId, requestMsgFunc.apply(subId, args), unSubRequestMsgFunc.apply(subId, args), overflowStrategy);
-    }
-
-    private void resub() {
-        this.subIdMap.entrySet().forEach(x -> {
-            try {
-                sendMessage(x.getValue().subRequest);
-            } catch (Exception ex) {
-                LOG.warn("Failed to resub for [{}]", x.getValue(), ex);
-            }
-        });
-    }
-
-
     static ByteBuffer pingPayload = ByteBuffer.wrap(new byte[]{8, 1, 8, 1});
 
     public void ping() throws IOException {
         LOG.debug("Sending ping message");
-        ensureSocketReady();
 
-        ws.sendPing(pingPayload).join();
+        ws().sendPing(pingPayload).join();
     }
 }

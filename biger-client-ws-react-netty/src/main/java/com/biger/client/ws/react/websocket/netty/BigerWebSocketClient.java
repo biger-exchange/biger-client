@@ -137,11 +137,6 @@ public class BigerWebSocketClient implements Client {
         }
     }
 
-    @Override
-    public void schedulePing(Duration pingInterval) {
-        eventLoopGroup.schedule(()->ping(), pingInterval.getNano(), TimeUnit.NANOSECONDS);
-    }
-
     public Mono<Integer> start() {
         if (!this.started.compareAndSet(false, true)) {
             return Mono.just(0);
@@ -154,6 +149,8 @@ public class BigerWebSocketClient implements Client {
         final BigerWebSocketClientHandler handler = new NettyBigerWebSocketClientHandler(
                 WebSocketClientHandshakerFactory.newHandshaker(
                         wsUri, WebSocketVersion.V13, null, true, new DefaultHttpHeaders()), this::onMessageReceived);
+
+        eventLoopGroup.schedule(()->ping(), 15, TimeUnit.SECONDS);
 
         return Mono.<Integer>create(sink -> {
 
@@ -358,28 +355,24 @@ public class BigerWebSocketClient implements Client {
         this.ackSinkMap.putIfAbsent(requestId, monoSink);
     }
 
-    public Mono<Integer> stop() {
+    public void stop() {
         if (!this.started.compareAndSet(true,false)) {
-            return Mono.just(0);
+            return;
         }
 
         isManualDisconnect = true;
         connectedSuccessfully = false;
-        return Mono.create(sink -> {
-            if (this.websocketChannel.isOpen()) {
-                CloseWebSocketFrame closeFrame = new CloseWebSocketFrame();
-                websocketChannel.writeAndFlush(closeFrame).addListener(future -> {
-                    subIdMap.clear();
-                    eventLoopGroup.shutdownGracefully(2, 30, TimeUnit.SECONDS).addListener(f -> {
-                        LOG.info("Disconnected");
-                        sink.success(1);
-                    });
+        if (this.websocketChannel.isOpen()) {
+            CloseWebSocketFrame closeFrame = new CloseWebSocketFrame();
+            websocketChannel.writeAndFlush(closeFrame).addListener(future -> {
+                subIdMap.clear();
+                eventLoopGroup.shutdownGracefully(2, 30, TimeUnit.SECONDS).addListener(f -> {
+                    LOG.info("Disconnected");
                 });
-            } else {
-                LOG.warn("Disconnect called but already disconnected");
-                sink.success();
-            }
-        });
+            });
+        } else {
+            LOG.warn("Disconnect called but already disconnected");
+        }
     }
 
     public Flux<ExchangeResponse> sub(String subId, String subRequestMsg, String unSubRequestMsg) {
@@ -459,17 +452,15 @@ public class BigerWebSocketClient implements Client {
 
     public void ping() {
 
-        LOG.debug("Sending ping message");
-
         if (this.websocketChannel == null || !this.websocketChannel.isOpen()) {
-            LOG.warn("WebSocket is not open! Call connect first.");
             return;
         }
 
         if (!this.websocketChannel.isWritable()) {
-            LOG.warn("Cannot send data to WebSocket as it is not writable.");
             return;
         }
+
+        LOG.debug("Sending ping message");
 
         WebSocketFrame frame = new PingWebSocketFrame(Unpooled.wrappedBuffer(new byte[]{8, 1, 8, 1}));
         this.websocketChannel.writeAndFlush(frame);

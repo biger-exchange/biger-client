@@ -20,6 +20,8 @@ the binary artifacts are released at maven repo https://biger-exchange.github.io
  * HttpClient supports NIO and async requests
    - many concurrent http requests can share the same thread or threads(we allow executor configurability)
  * HttpURLConnection means synchronous http requests, and one thread for every concurrent request
+ * for our market data websocket/react client, we provide an impl based on jdk11+ HttpClient and another impl based on netty4
+ * if you are not on java11+, your only option there is based on netty4, introducing another dependency to your runtime
 
 ## tool for generating key pair to use for application of api access token
 One of the requirements to apply for api access token is for you to generate your own RSA key pair, and provide the public key to biger exchange. Our client provides such API to generate the key pair for you if you wish.
@@ -27,12 +29,9 @@ One of the requirements to apply for api access token is for you to generate you
 [Example to generate RSA key pair](https://github.com/biger-exchange/biger-client-example/blob/master/src/main/java/com/biger/client/examples/GenerateKeyPair.java)
 
 ## websocket react api for market data
-This is available now in a beta state, we expect some reorganization of the code and changes to the general APIs.
-Also, it is not yet integrated neatly with our main client API.
+This is available now in a beta state, we expect some reorganization of the code and changes to the general APIs and possibly bugs
 
 ## immediate roadmap plan
-* websocket market data
-* websocket order change subscription
 * protocol version compatibility check
 * consider enums for well known field values - but also consider case where new field value possibilities are added in future
 * consider sync client for people who dont care for async (or just advise them to call .get on future)

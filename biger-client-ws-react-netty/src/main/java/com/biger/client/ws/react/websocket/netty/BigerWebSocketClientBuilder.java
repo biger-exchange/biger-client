@@ -5,6 +5,7 @@ import com.biger.client.ws.react.websocket.Client;
 import com.biger.client.ws.react.websocket.ClientBuilder;
 
 import java.net.URI;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 public class BigerWebSocketClientBuilder implements ClientBuilder {
@@ -31,8 +32,17 @@ public class BigerWebSocketClientBuilder implements ClientBuilder {
     }
 
     @Override
-    public Client build() {
-        return new BigerWebSocketClient(uri, text2Response, response2SubId);
+    public CompletableFuture<? extends Client> build() {
+        BigerWebSocketClient c = new BigerWebSocketClient(uri, text2Response, response2SubId);
+        CompletableFuture<BigerWebSocketClient> f = new CompletableFuture<>();
+        c.doStart()
+            .doOnSuccess(i->{
+                if (i == 1) f.complete(c);
+                f.completeExceptionally(new IllegalStateException("didnt connect successfully"));
+            })
+            .doOnError(f::completeExceptionally)
+            .subscribe();
+        return f;
     }
 }
 

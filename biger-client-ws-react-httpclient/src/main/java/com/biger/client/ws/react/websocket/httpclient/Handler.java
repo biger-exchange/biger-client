@@ -13,9 +13,11 @@ public class Handler implements Listener {
     final static Logger log = LoggerFactory.getLogger(Handler.class);
 
     final Consumer<CharSequence> onMessageReceived;
+    final Consumer<Throwable> onError;
 
-    public Handler(Consumer<CharSequence> onMessageReceived) {
+    public Handler(Consumer<CharSequence> onMessageReceived, Consumer<Throwable> onError) {
         this.onMessageReceived = onMessageReceived;
+        this.onError = onError;
     }
 
     @Override
@@ -44,5 +46,10 @@ public class Handler implements Listener {
         }
         webSocket.request(1);
         return null;
+    }
+
+    @Override
+    public void onError(WebSocket webSocket, Throwable error) {
+        onError.accept(error);
     }
 }
