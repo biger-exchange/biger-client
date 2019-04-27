@@ -153,7 +153,7 @@ public class BigerWebSocketClient implements Client {
 
     private void onMessageReceived(CharSequence cs) {
         String text = cs.toString();
-        LOG.debug("Websocket message received [{}]", text);
+        LOG.info("Websocket message received [{}]", text);
         ExchangeResponse msg = Optional.ofNullable(text).map(this.text2MessageConvertorFunc).orElse(null);
         if (msg == null) {
             LOG.warn("Failed to parse message [{}]", text);
@@ -248,7 +248,7 @@ public class BigerWebSocketClient implements Client {
     }
 
     @Override
-    public Flux<ExchangeResponse> sub(String subId, String subRequestMsg, String unSubRequestMsg, Predicate<String> topicFilter) {
+    public Flux<ExchangeResponse> sub(String subId, String subRequestMsg, String unSubRequestMsg, Predicate<String> topicFilter, boolean forceSubReq) {
         LOG.debug("Subscribing to websocket Channel {}", subId);
         Subscription sub = new Subscription(subRequestMsg, unSubRequestMsg);
 
@@ -268,7 +268,7 @@ public class BigerWebSocketClient implements Client {
         Subscription finalSub = sub;
         return emitter.filter(resp->topicFilter.test(resp.getTopic()))
                 .doOnSubscribe(s->{
-                    if (finalSub.count.incrementAndGet() == 1) {
+                    if (forceSubReq || finalSub.count.incrementAndGet() == 1) {
                         try {
                             sendMessage(subRequestMsg);
                         } catch (IOException e) {

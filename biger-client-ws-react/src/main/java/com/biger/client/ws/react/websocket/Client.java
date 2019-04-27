@@ -15,9 +15,9 @@ public interface Client {
 
     Mono<ExchangeResponse> requestSingle(String requestId, String requestMsg);
 
-    Flux<ExchangeResponse> sub(String subId, String subRequestMsg, String unSubRequestMsg, Predicate<String> topicFilter);
-
     static ClientBuilder newBuilder() {
         return ServiceLoader.load(ClientBuilder.class).iterator().next();
     }
+
+    Flux<ExchangeResponse> sub(String subId, String subRequestMsg, String unSubRequestMsg, Predicate<String> topicFilter, boolean forceSubReq);
 }

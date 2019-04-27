@@ -60,10 +60,10 @@ public class BigerMarketDataWebsocketClientImpl implements BigerMarketDataWebsoc
 
     private Flux<ExchangeResponse> doSub(BigerMarketEventType subType, String key, Object subRequest, Object unSubRequest) {
         String topic = subType.toKey(key);
-        return doSub(subType, key, subRequest, unSubRequest, t->t.equals(topic));
+        return doSub(subType, key, subRequest, unSubRequest, t->t.equals(topic), false);
     }
 
-    private Flux<ExchangeResponse> doSub(BigerMarketEventType subType, String key, Object subRequest, Object unSubRequest, Predicate<String> filter) {
+    private Flux<ExchangeResponse> doSub(BigerMarketEventType subType, String key, Object subRequest, Object unSubRequest, Predicate<String> filter, boolean forceSubReq) {
         try {
             long id = this.generateId();
             String subRequestStr = this.objectMapper.writeValueAsString(ExchangeRequest.builder()
@@ -86,7 +86,7 @@ public class BigerMarketDataWebsocketClientImpl implements BigerMarketDataWebsoc
             }, err -> {
                 LOG.warn("Failed to sub for method [{}]", subType, err);
             });
-            return this.jsonWebSocketClient.sub(subType.toKey(key), subRequestStr, unSubRequestStr, filter);
+            return this.jsonWebSocketClient.sub(subType.toKey(key), subRequestStr, unSubRequestStr, filter, forceSubReq);
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to serialze obj to json", ex);
         }
@@ -172,7 +172,7 @@ public class BigerMarketDataWebsocketClientImpl implements BigerMarketDataWebsoc
     @Override
     public Flux<BigerSymbolStateEvent> subSymbolState(String symbol) {
         if (symbol.equals("all")) {
-            return this.doSub(BigerMarketEventType.STATE_UPDATE, symbol, new StateSubRequest(symbol), new StateSubRequest(symbol), t->t.startsWith(BigerMarketEventType.STATE_UPDATE.name()))
+            return this.doSub(BigerMarketEventType.STATE_UPDATE, symbol, new StateSubRequest(symbol), new StateSubRequest(symbol), t->t.startsWith(BigerMarketEventType.STATE_UPDATE.name()), true)
                     .map(x -> (BigerSymbolStateEvent) x.getParams());
         }
 
