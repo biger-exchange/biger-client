@@ -90,9 +90,7 @@ public interface Utils {
 
     }
 
-    static CompletableFuture<JsonNode> reqGeneric(State s, String path, String queryString, String method, String body) {
-        URI uri = Utils.newUriUnchecked(s.url, path);
-
+    static CompletableFuture<JsonNode> reqGeneric(State s, URI uri, String queryString, String method, String body) {
         long expiry = s.clock.millis() + s.expiryLeewayMillis;
 
         return s.encryptors.borrowAndApply(c-> s.httpOps.sendAsync(

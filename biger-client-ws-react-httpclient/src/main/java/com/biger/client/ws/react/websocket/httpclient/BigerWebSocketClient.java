@@ -5,10 +5,8 @@ import com.biger.client.ws.react.domain.response.ExchangeResponse;
 import com.biger.client.ws.react.websocket.Client;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.FluxSink;
-import reactor.core.publisher.Mono;
-import reactor.core.publisher.MonoSink;
+import reactor.core.publisher.*;
+import reactor.core.scheduler.Scheduler;
 
 import java.io.IOException;
 import java.net.URI;
@@ -21,11 +19,12 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
-@SuppressWarnings({"unsafe", "unchecked"})
 public class BigerWebSocketClient implements Client {
     static final Logger LOG = LoggerFactory.getLogger(BigerWebSocketClient.class);
 
@@ -46,14 +45,10 @@ public class BigerWebSocketClient implements Client {
     // for push update
     private final ConcurrentMap<String, Subscription> subIdMap = new ConcurrentHashMap<>();
 
-    private final Map<String, Flux<ExchangeResponse>> topic2FluxMap = new HashMap<>();
-
     // for requestSingle
     private final ConcurrentMap<String, MonoSink> ackSinkMap = new ConcurrentHashMap<>();
 
     final private URI wsUri;
-
-    private final ConcurrentHashMap<String, Lock> locks = new ConcurrentHashMap<>();
 
     final Timer t = new Timer();
     final TimerTask pingTask = new TimerTask() {
@@ -64,7 +59,8 @@ public class BigerWebSocketClient implements Client {
             } catch (IOException e) {
                 LOG.warn("ping failed", e);
 
-            } catch (NullPointerException e) {}
+            } catch (NullPointerException e) {
+            }
         }
     };
 
@@ -72,11 +68,14 @@ public class BigerWebSocketClient implements Client {
     final Lock wsLock = new ReentrantLock();
     volatile boolean stopped = false;
 
-    final Handler handler = new Handler(msg->onMessageReceived(msg), t-> {
+    final Handler handler = new Handler(msg -> onMessageReceived(msg), t -> {
         wsLock.lock();
         ws = null;
         wsLock.unlock();
     });
+
+    final EmitterProcessor<ExchangeResponse> emitter;
+    final FluxSink<ExchangeResponse> sink;
 
     private BigerWebSocketClient(URI address, Function<String, ExchangeResponse> text2MsgFunc, Function<ExchangeResponse, String> msg2SubIdFunc) {
         this(address, text2MsgFunc, msg2SubIdFunc, DEFAULT_MAX_FRAME_SIZE, DEFAULT_CONNECT_TIMEOUT, DEFAULT_RETRY_TIMEOUT);
@@ -90,6 +89,8 @@ public class BigerWebSocketClient implements Client {
         this.connectTimeout = connectionTimeout;
         this.retryTimeout = retryTimeout;
 
+        emitter = EmitterProcessor.create(256, false);
+        sink = emitter.sink(FluxSink.OverflowStrategy.LATEST);
     }
 
     static CompletableFuture<BigerWebSocketClient> build(URI address, Function<String, ExchangeResponse> text2MsgFunc, Function<ExchangeResponse, String> msg2SubIdFunc) {
@@ -99,14 +100,11 @@ public class BigerWebSocketClient implements Client {
     }
 
     static class Subscription {
-        final FluxSink fluxSink;
-        final String subId;
         final String subRequest;
         final String unSubRequest;
+        final AtomicInteger count = new AtomicInteger(0);
 
-        public Subscription(FluxSink flux, String subId, String subRequest, String unSubRequest) {
-            this.fluxSink = flux;
-            this.subId = subId;
+        public Subscription(String subRequest, String unSubRequest) {
             this.subRequest = subRequest;
             this.unSubRequest = unSubRequest;
         }
@@ -172,24 +170,28 @@ public class BigerWebSocketClient implements Client {
 
     private void dispatchMessage(String subId, ExchangeResponse message) {
         assert subId != null : "subId should not null in dispatch";
+
         MonoSink ackEmiiter = this.ackSinkMap.get(subId);
         if (ackEmiiter != null) {
             ackEmiiter.success(message);
             return;
         }
+        message.setTopic(msgIdExtractorFunc.apply(message));
 
-        if (!Optional.ofNullable(subIdMap.get(subId))
-                .filter(Objects::nonNull)
-                .map(x -> x.fluxSink.next(message)).isPresent()) {
-            LOG.warn("Failed to find receivers for sub id [{}]", subId);
-        }
+        sink.next(message);
     }
 
+    final ReentrantLock sendMsgLock = new ReentrantLock();
     public void sendMessage(String message) throws IOException {
         LOG.debug("Sending message: {}", message);
 
         if (message != null) {
-            ws().sendText(message, true).join();
+            sendMsgLock.lock();
+            try {
+                ws().sendText(message, true).join();
+            } finally {
+                sendMsgLock.unlock();
+            }
         }
     }
 
@@ -225,12 +227,6 @@ public class BigerWebSocketClient implements Client {
                 monoSink.error(e);
                 return;
             }
-            monoSink.onDispose(() -> {
-                if (prevSink == null) {
-                    this.ackSinkMap.remove(requestId, monoSink);
-                }
-
-            });
         }).doOnError(err -> {
             LOG.warn("Got error in request single for requsetId " + requestId, err);
         });
@@ -243,8 +239,8 @@ public class BigerWebSocketClient implements Client {
                 ws.abort();
             } catch (NullPointerException e) {
                 // fine
-            }
-            finally {
+            } finally {
+                sink.complete();
                 pingTask.cancel();
                 t.cancel();
             }
@@ -252,50 +248,44 @@ public class BigerWebSocketClient implements Client {
     }
 
     @Override
-    public Flux<ExchangeResponse> sub(String subId, String subRequestMsg, String unSubRequestMsg) {
-        return this.sub(subId, subRequestMsg, unSubRequestMsg, FluxSink.OverflowStrategy.LATEST);
-    }
-
-    public Flux<ExchangeResponse> sub(String subId, String subRequestMsg, String unSubRequestMsg, FluxSink.OverflowStrategy overflowStrategy) {
+    public Flux<ExchangeResponse> sub(String subId, String subRequestMsg, String unSubRequestMsg, Predicate<String> topicFilter) {
         LOG.debug("Subscribing to websocket Channel {}", subId);
-        Lock lock = locks.computeIfAbsent(subId, k-> new ReentrantLock());
-        lock.lock();
-        try {
-            Flux<ExchangeResponse> sharedFlux = this.topic2FluxMap.get(subId);
-            if (sharedFlux != null) {
-                return sharedFlux.share();
-            }
+        Subscription sub = new Subscription(subRequestMsg, unSubRequestMsg);
 
-            Flux<ExchangeResponse> ans = Flux.<ExchangeResponse>create(fluxSink -> {
-                Subscription prev = this.subIdMap.putIfAbsent(subId, new Subscription(fluxSink, subId, subRequestMsg, unSubRequestMsg));
-
-                if (prev == null) {
-                    try {
-                        sendMessage(subRequestMsg);
-                    } catch (IOException e) {
-                        //ignore
-                    }
+        {
+            Subscription prev = this.subIdMap.putIfAbsent(subId, sub);
+            if (prev == null) {
+                try {
+                    sendMessage(subRequestMsg);
+                } catch (IOException e) {
+                    //ignore
                 }
+            } else {
+                sub = prev;
+            }
+        }
 
-                fluxSink.onDispose(() -> {
-                    Subscription rprev = this.subIdMap.remove(subId);
-                    if (rprev != null) {
+        Subscription finalSub = sub;
+        return emitter.filter(resp->topicFilter.test(resp.getTopic()))
+                .doOnSubscribe(s->{
+                    if (finalSub.count.incrementAndGet() == 1) {
+                        try {
+                            sendMessage(subRequestMsg);
+                        } catch (IOException e) {
+                            //ignore
+                        }
+                    }
+                })
+                .doOnTerminate(()->{
+                    if (finalSub.count.decrementAndGet() == 0) {
                         try {
                             sendMessage(unSubRequestMsg);
                         } catch (IOException e) {
                             //ignore
                         }
                     }
-                });
-            }, overflowStrategy)
-                    .retryWhen((Flux<Throwable> errFlux) -> errFlux.filter(err -> !(err instanceof IOException)).flatMap(err -> Mono.delay(this.retryTimeout)))
-                    .share();
-
-            this.topic2FluxMap.put(subId, ans);
-            return ans;
-        } finally {
-            lock.unlock();
-        }
+                }
+        );
     }
 
     static ByteBuffer pingPayload = ByteBuffer.wrap(new byte[]{8, 1, 8, 1});

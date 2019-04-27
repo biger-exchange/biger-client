@@ -20,10 +20,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.FluxSink;
-import reactor.core.publisher.Mono;
-import reactor.core.publisher.MonoSink;
+import reactor.core.publisher.*;
 
 import javax.net.ssl.SSLException;
 import java.io.IOException;
@@ -34,11 +31,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 @SuppressWarnings({"unsafe", "unchecked"})
 public class BigerWebSocketClient implements Client {
@@ -68,8 +67,6 @@ public class BigerWebSocketClient implements Client {
     // for push update
     private final ConcurrentMap<String, Subscription> subIdMap = new ConcurrentHashMap<>();
 
-    private final Map<String, Flux<ExchangeResponse>> topic2FluxMap = new HashMap<>();
-
     // for requestSingle
     private final ConcurrentMap<String, MonoSink> ackSinkMap = new ConcurrentHashMap<>();
 
@@ -85,18 +82,11 @@ public class BigerWebSocketClient implements Client {
     @Getter
     private final NioEventLoopGroup eventLoopGroup;
 
-    private FluxSink<ExchangeResponse> unkonwMessageEmitter;
-
-    private FluxSink<String> unparsedMsgEmitter;
-
-    private final Flux<String> unparsedMsgFlux;
-
-    private final Flux<ExchangeResponse> unkonwMessageFlux;
-
-    private final ConcurrentHashMap<String, Lock> locks = new ConcurrentHashMap<>();
-
     @Setter
     private boolean acceptAllCertificates;
+
+    final EmitterProcessor<ExchangeResponse> emitter;
+    final FluxSink<ExchangeResponse> sink;
 
     public BigerWebSocketClient(URI address, Function<String, ExchangeResponse> text2MsgFunc, Function<ExchangeResponse, String> msg2SubIdFunc) {
         this(address, text2MsgFunc, msg2SubIdFunc, DEFAULT_MAX_FRAME_SIZE, DEFAULT_CONNECT_TIMEOUT, DEFAULT_RETRY_TIMEOUT);
@@ -112,26 +102,18 @@ public class BigerWebSocketClient implements Client {
         this.retryTimeout = retryTimeout;
 
         this.eventLoopGroup = new NioEventLoopGroup(2);
-        this.unkonwMessageFlux = Flux.create(emitter -> {
-            this.unkonwMessageEmitter = emitter;
-        }, FluxSink.OverflowStrategy.LATEST);
-        this.unkonwMessageFlux.subscribe();
 
-        this.unparsedMsgFlux = Flux.create(sink -> {
-            this.unparsedMsgEmitter = sink;
-        }, FluxSink.OverflowStrategy.LATEST);
-        this.unparsedMsgFlux.subscribe();
+        emitter = EmitterProcessor.create(256, false);
+        sink = emitter.sink(FluxSink.OverflowStrategy.LATEST);
+
     }
 
     static class Subscription {
-        final FluxSink fluxSink;
-        final String subId;
         final String subRequest;
         final String unSubRequest;
+        final AtomicInteger count = new AtomicInteger(0);
 
-        public Subscription(FluxSink flux, String subId, String subRequest, String unSubRequest) {
-            this.fluxSink = flux;
-            this.subId = subId;
+        public Subscription(String subRequest, String unSubRequest) {
             this.subRequest = subRequest;
             this.unSubRequest = unSubRequest;
         }
@@ -244,27 +226,17 @@ public class BigerWebSocketClient implements Client {
         throw new IllegalStateException("Only websocket scheme supported, uri started with ws(s)://");
     }
 
-    public Flux<ExchangeResponse> wildMessages() {
-        return this.unkonwMessageFlux.share();
-    }
-
-    public Flux<String> unparsedMessages() {
-        return this.unparsedMsgFlux.share();
-    }
-
     private void onMessageReceived(String text) {
         LOG.debug("Websocket message received [{}]", text);
         ExchangeResponse msg = Optional.ofNullable(text).map(this.text2MessageConvertorFunc).orElse(null);
         if (msg == null) {
             LOG.warn("Failed to parse message [{}]", text);
-            this.unparsedMsgEmitter.next(text);
             return;
         }
 
         String subId = Optional.ofNullable(msg).map(this.msgIdExtractorFunc).orElse(null);
         if (subId == null) {
             LOG.warn("Failed to extract sub id from message");
-            this.unkonwMessageEmitter.next(msg);
             return;
         }
         this.dispatchMessage(subId, msg);
@@ -278,12 +250,9 @@ public class BigerWebSocketClient implements Client {
             return;
         }
 
-        if (!Optional.ofNullable(subIdMap.get(subId))
-                .filter(Objects::nonNull)
-                .map(x -> x.fluxSink.next(message)).isPresent()) {
-            LOG.warn("Failed to find receivers for sub id [{}]", subId);
-            this.unkonwMessageEmitter.next(message);
-        }
+        message.setTopic(msgIdExtractorFunc.apply(message));
+
+        sink.next(message);
     }
 
     private void ensureSocketReady() throws IOException {
@@ -341,9 +310,6 @@ public class BigerWebSocketClient implements Client {
                 return;
             }
             monoSink.onDispose(() -> {
-                if (prevSink == null) {
-                    this.ackSinkMap.remove(requestId, monoSink);
-                }
 
             });
         }).doOnError(err -> {
@@ -375,54 +341,45 @@ public class BigerWebSocketClient implements Client {
         }
     }
 
-    public Flux<ExchangeResponse> sub(String subId, String subRequestMsg, String unSubRequestMsg) {
-        return this.sub(subId, subRequestMsg, unSubRequestMsg, FluxSink.OverflowStrategy.LATEST);
-    }
-
-    public Flux<ExchangeResponse> sub(String subId, String subRequestMsg, String unSubRequestMsg, FluxSink.OverflowStrategy overflowStrategy) {
+    public Flux<ExchangeResponse> sub(String subId, String subRequestMsg, String unSubRequestMsg, Predicate<String> topicFilter) {
         LOG.debug("Subscribing to websocket Channel {}", subId);
-        Lock lock = locks.computeIfAbsent(subId, k-> new ReentrantLock());
-        lock.lock();
-        try {
-            Flux<ExchangeResponse> sharedFlux = this.topic2FluxMap.get(subId);
-            if (sharedFlux != null) {
-                return sharedFlux.share();
-            }
 
-            Flux<ExchangeResponse> ans = Flux.<ExchangeResponse>create(fluxSink -> {
-                Subscription prev = this.subIdMap.putIfAbsent(subId, new Subscription(fluxSink, subId, subRequestMsg, unSubRequestMsg));
+        Subscription sub = new Subscription(subRequestMsg, unSubRequestMsg);
 
-                if (prev == null) {
-                    try {
-                        sendMessage(subRequestMsg);
-                    } catch (IOException e) {
-                        //ignore
-                    }
+        {
+            Subscription prev = this.subIdMap.putIfAbsent(subId, sub);
+            if (prev == null) {
+                try {
+                    sendMessage(subRequestMsg);
+                } catch (IOException e) {
+                    //ignore
                 }
+            } else {
+                sub = prev;
+            }
+        }
 
-                fluxSink.onDispose(() -> {
-                    Subscription rprev = this.subIdMap.remove(subId);
-                    if (rprev != null) {
+        Subscription finalSub = sub;
+        return emitter.filter(resp->topicFilter.test(resp.getTopic()))
+                .doOnSubscribe(s->{
+                    if (finalSub.count.incrementAndGet() == 1) {
                         try {
-                            sendMessage(unSubRequestMsg);
+                            sendMessage(subRequestMsg);
                         } catch (IOException e) {
                             //ignore
                         }
                     }
-                });
-            }, overflowStrategy)
-                    .retryWhen((Flux<Throwable> errFlux) -> errFlux.filter(err -> !(err instanceof IOException)).flatMap(err -> Mono.delay(this.retryTimeout)))
-                    .share();
-
-            this.topic2FluxMap.put(subId, ans);
-            return ans;
-        } finally {
-            lock.unlock();
-        }
-    }
-
-    public Flux<ExchangeResponse> sub(String subId, BiFunction<String, Object[], String> requestMsgFunc, Object[] args, BiFunction<String, Object[], String> unSubRequestMsgFunc, FluxSink.OverflowStrategy overflowStrategy) {
-        return this.sub(subId, requestMsgFunc.apply(subId, args), unSubRequestMsgFunc.apply(subId, args), overflowStrategy);
+                })
+                .doOnTerminate(()->{
+                            if (finalSub.count.decrementAndGet() == 0) {
+                                try {
+                                    sendMessage(unSubRequestMsg);
+                                } catch (IOException e) {
+                                    //ignore
+                                }
+                            }
+                        }
+                );
     }
 
     private void resub() {

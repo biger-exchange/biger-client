@@ -2,6 +2,7 @@ package com.biger.client.httpops;
 
 import javax.crypto.Cipher;
 import java.time.Clock;
+import java.util.Optional;
 
 public class State {
     public final HttpOps httpOps;

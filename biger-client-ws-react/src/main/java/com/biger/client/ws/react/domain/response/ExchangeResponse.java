@@ -13,15 +13,10 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Data
 public class ExchangeResponse<T> {
-
-    private ExchangeError error;
-
-    private Object result;
-
-    private Long id;
-
-    private String method;
-
-    private T params;
-
+    String topic;
+    ExchangeError error;
+    Object result;
+    Long id;
+    String method;
+    T params;
 }

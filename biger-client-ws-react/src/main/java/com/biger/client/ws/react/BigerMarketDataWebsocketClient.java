@@ -6,6 +6,9 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.net.URI;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -16,6 +19,8 @@ public interface BigerMarketDataWebsocketClient extends AutoCloseable {
     Flux<BigerSymbolPriceEvent> subSymbolPrice(String symbol);
 
     Mono<String> querySymbolPrice(String symbol);
+
+    Mono<List<KlineDataPoint>> queryKline(String symbol, Instant startTime, Instant endTime, Duration interval);
 
     Flux<BigerDealEvent> subDeals(String symbol);
 

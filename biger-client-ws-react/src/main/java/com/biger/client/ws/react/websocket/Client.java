@@ -5,6 +5,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.ServiceLoader;
+import java.util.function.Predicate;
 
 public interface Client {
 
@@ -14,7 +15,7 @@ public interface Client {
 
     Mono<ExchangeResponse> requestSingle(String requestId, String requestMsg);
 
-    Flux<ExchangeResponse> sub(String subId, String subRequestMsg, String unSubRequestMsg);
+    Flux<ExchangeResponse> sub(String subId, String subRequestMsg, String unSubRequestMsg, Predicate<String> topicFilter);
 
     static ClientBuilder newBuilder() {
         return ServiceLoader.load(ClientBuilder.class).iterator().next();

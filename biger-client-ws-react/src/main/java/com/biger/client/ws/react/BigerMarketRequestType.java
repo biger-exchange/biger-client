@@ -8,7 +8,8 @@ import lombok.Getter;
 public enum BigerMarketRequestType {
 
     PRICER_QUERY("price.query"),
-    LOGIN("user.login")
+    LOGIN("user.login"),
+    KLINE_QUERY("kline.query")
     ;
 
     private String method;

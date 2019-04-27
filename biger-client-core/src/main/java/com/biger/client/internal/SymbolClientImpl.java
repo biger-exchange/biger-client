@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 
 import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
+import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -36,46 +37,5 @@ public class SymbolClientImpl implements SymbolClient {
                 null,
                 new TypeReference<BigerResponse<List<SymbolInfo>>>() {})
                 .thenApply(resp->resp.data());
-    }
-
-    @Override
-    public CompletableFuture<List<KlineDataPoint>> kline(String symbol, Duration interval, Instant startTime, Instant endTime) {
-        try {
-            return Utils.reqGeneric(state,
-                    "/md/kline",
-                    "symbol=" + URLEncoder.encode(symbol, StandardCharsets.UTF_8.name()) +
-                            "&period=" + interval.getSeconds() +
-                            "&start_time=" + startTime.getEpochSecond() +
-                            "&end_time=" + endTime.getEpochSecond(),
-                    "GET",
-                    null)
-                    .thenApply(resp->{
-                        JsonNode error = resp.get("error");
-                        if(error != null && !error.isNull()) {
-                            throw new BigerResponseException(error.asText());
-                        }
-                        JsonNode result = resp.get("result");
-                        if(result == null || result.isNull()) {
-                            throw new BigerResponseException("missing result");
-                        }
-                        List<KlineDataPoint> l = new ArrayList<>();
-                        Iterator<JsonNode> elements = result.elements();
-                        while(elements.hasNext()) {
-                            JsonNode dp = elements.next();
-                            l.add(new KlineDataPoint(
-                                    Instant.ofEpochSecond(dp.get(0).asLong()),
-                                    new BigDecimal(dp.get(1).asText()),
-                                    new BigDecimal(dp.get(2).asText()),
-                                    new BigDecimal(dp.get(3).asText()),
-                                    new BigDecimal(dp.get(4).asText()),
-                                    new BigDecimal(dp.get(5).asText()),
-                                    new BigDecimal(dp.get(6).asText())
-                            ));
-                        }
-                        return l;
-                    });
-        } catch (UnsupportedEncodingException e) {
-            throw new RuntimeException(e);
-        }
     }
 }

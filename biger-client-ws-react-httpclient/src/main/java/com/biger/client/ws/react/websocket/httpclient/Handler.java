@@ -15,6 +15,8 @@ public class Handler implements Listener {
     final Consumer<CharSequence> onMessageReceived;
     final Consumer<Throwable> onError;
 
+    final StringBuilder b = new StringBuilder();
+
     public Handler(Consumer<CharSequence> onMessageReceived, Consumer<Throwable> onError) {
         this.onMessageReceived = onMessageReceived;
         this.onError = onError;
@@ -40,7 +42,11 @@ public class Handler implements Listener {
         if(log.isDebugEnabled())
             log.debug("WebSocket Client received message {}", data);
         try {
-            this.onMessageReceived.accept(data);
+            b.append(data);
+            if (last) {
+                onMessageReceived.accept(b.toString());
+                b.setLength(0);
+            }
         } catch (Exception ex) {
             log.warn("Failed to consume message [{}]", data, ex);
         }
