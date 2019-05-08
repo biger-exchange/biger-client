@@ -13,8 +13,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
 
 import java.math.BigDecimal;
 import java.net.URI;
@@ -171,13 +173,27 @@ public class BigerMarketDataWebsocketClientImpl implements BigerMarketDataWebsoc
 
     @Override
     public Flux<BigerSymbolStateEvent> subSymbolState(String symbol) {
-        if (symbol.equals("all")) {
-            return this.doSub(BigerMarketEventType.STATE_UPDATE, symbol, new StateSubRequest(symbol), new StateSubRequest(symbol), t->t.startsWith(BigerMarketEventType.STATE_UPDATE.name()), true)
-                    .map(x -> (BigerSymbolStateEvent) x.getParams());
-        }
-
         return this.doSub(BigerMarketEventType.STATE_UPDATE, symbol, new StateSubRequest(symbol), new StateSubRequest(symbol))
                 .map(x -> (BigerSymbolStateEvent) x.getParams());
+    }
+
+    @Override
+    public RefreshableFlux<BigerSymbolStateEvent> subAllSymbolStates() {
+
+        Flux<BigerSymbolStateEvent> f = doSub(BigerMarketEventType.STATE_UPDATE, "all", new StateSubRequest("all"), new StateSubRequest("all"), t -> t.startsWith(BigerMarketEventType.STATE_UPDATE.name()), true)
+                .map(x -> (BigerSymbolStateEvent) x.getParams());
+
+        return new RefreshableFlux<BigerSymbolStateEvent>() {
+            @Override
+            public void refresh() {
+                doSub(BigerMarketEventType.STATE_UPDATE, "all", new StateSubRequest("all"), new StateSubRequest("all"), t->false, true).subscribe().dispose();
+            }
+
+            @Override
+            public Flux<BigerSymbolStateEvent> flux() {
+                return f;
+            }
+        };
     }
 
     @Override

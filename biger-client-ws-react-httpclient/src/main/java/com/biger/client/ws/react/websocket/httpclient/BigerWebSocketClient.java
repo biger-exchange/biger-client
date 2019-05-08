@@ -185,10 +185,12 @@ public class BigerWebSocketClient implements Client {
     public void sendMessage(String message) throws IOException {
         LOG.debug("Sending message: {}", message);
 
+        WebSocket ws = ws();
+
         if (message != null) {
             sendMsgLock.lock();
             try {
-                ws().sendText(message, true).join();
+                ws.sendText(message, true).join();
             } finally {
                 sendMsgLock.unlock();
             }

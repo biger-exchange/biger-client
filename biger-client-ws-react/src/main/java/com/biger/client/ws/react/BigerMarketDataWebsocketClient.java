@@ -9,7 +9,6 @@ import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 public interface BigerMarketDataWebsocketClient extends AutoCloseable {
@@ -25,6 +24,8 @@ public interface BigerMarketDataWebsocketClient extends AutoCloseable {
     Flux<BigerDealEvent> subDeals(String symbol);
 
     Flux<BigerSymbolStateEvent> subSymbolState(String symbol);
+
+    RefreshableFlux<BigerSymbolStateEvent> subAllSymbolStates();
 
     /**
      * @param type :  PC, H5, APP
@@ -56,5 +57,10 @@ public interface BigerMarketDataWebsocketClient extends AutoCloseable {
         Builder uri(URI uri);
 
         BigerMarketDataWebsocketClient build();
+    }
+
+    interface RefreshableFlux<T> {
+        void refresh();
+        Flux<T> flux();
     }
 }
