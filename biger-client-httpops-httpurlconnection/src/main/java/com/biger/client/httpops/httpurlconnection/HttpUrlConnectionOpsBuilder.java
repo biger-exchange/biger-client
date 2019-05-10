@@ -3,6 +3,8 @@ package com.biger.client.httpops.httpurlconnection;
 import com.biger.client.httpops.HttpOps;
 import com.biger.client.httpops.HttpOpsBuilder;
 import com.biger.client.httpops.Utils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.crypto.Cipher;
 import java.io.ByteArrayOutputStream;
@@ -15,21 +17,19 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.logging.Logger;
 
 public class HttpUrlConnectionOpsBuilder implements HttpOpsBuilder {
 
-    static final Logger logger = Logger.getLogger(HttpUrlConnectionOpsBuilder.class.getName());
+    static final Logger logger = LoggerFactory.getLogger(HttpUrlConnectionOpsBuilder.class);
 
     Duration connectionTimeout = Duration.ofSeconds(5L);
 
     @Override
     public HttpOpsBuilder executor(Executor e) {
-        logger.warning("ignoring executor because async requests are not supported using HTTPURLConnection");
+        logger.warn("ignoring executor because async requests are not supported using HTTPURLConnection");
         return this;
     }
 

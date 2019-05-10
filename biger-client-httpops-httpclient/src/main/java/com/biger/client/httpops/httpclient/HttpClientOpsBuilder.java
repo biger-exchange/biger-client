@@ -4,6 +4,8 @@ import com.biger.client.httpops.BigerResponseException;
 import com.biger.client.httpops.HttpOps;
 import com.biger.client.httpops.HttpOpsBuilder;
 import com.biger.client.httpops.Utils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.crypto.Cipher;
 import java.net.URI;
@@ -18,6 +20,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 public class HttpClientOpsBuilder implements HttpOpsBuilder {
+
+    static final Logger logger = LoggerFactory.getLogger(HttpClientOpsBuilder.class);
 
     Executor e;
     Duration connectionTimeout = Duration.ofSeconds(5L);
@@ -73,6 +77,9 @@ public class HttpClientOpsBuilder implements HttpOpsBuilder {
                             .header("content-type", "application/json");
                 }
                 HttpRequest req = b.build();
+                if (logger.isDebugEnabled()) {
+                    logger.debug("http request - {} {}", req, req.headers().map());
+                }
 
                 return httpClient.sendAsync(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
                     .thenApply(resp->{

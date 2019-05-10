@@ -109,7 +109,7 @@ public class BigerClientBuilderImpl implements BigerClient.Builder {
                 .executor(executor)
                 .build();
 
-        State s = new State(httpOps, url, accessToken, encryptors, clock, expiryLeeway.getNano() / 1000L);
+        State s = new State(httpOps, url, accessToken, encryptors, clock, expiryLeeway.toNanos() / 1000L);
         SymbolClientImpl symbolClient = new SymbolClientImpl(s);
         OrderClientImpl orderClient = new OrderClientImpl(s);
 
