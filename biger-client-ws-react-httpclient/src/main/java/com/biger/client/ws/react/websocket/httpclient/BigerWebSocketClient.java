@@ -6,7 +6,6 @@ import com.biger.client.ws.react.websocket.Client;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.*;
-import reactor.core.scheduler.Scheduler;
 
 import java.io.IOException;
 import java.net.URI;

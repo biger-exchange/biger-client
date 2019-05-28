@@ -132,7 +132,7 @@ public class BigerWebSocketClient implements Client {
                 WebSocketClientHandshakerFactory.newHandshaker(
                         wsUri, WebSocketVersion.V13, null, true, new DefaultHttpHeaders()), this::onMessageReceived);
 
-        eventLoopGroup.schedule(()->ping(), 15, TimeUnit.SECONDS);
+        eventLoopGroup.scheduleWithFixedDelay(()->ping(), 15, 15, TimeUnit.SECONDS);
 
         return Mono.<Integer>create(sink -> {
 
