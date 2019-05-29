@@ -27,6 +27,8 @@ public interface BigerMarketDataWebsocketClient extends AutoCloseable {
 
     RefreshableFlux<BigerSymbolStateEvent> subAllSymbolStates();
 
+    void interruptConnection();
+
     /**
      * @param type :  PC, H5, APP
      * @param token : token from http api

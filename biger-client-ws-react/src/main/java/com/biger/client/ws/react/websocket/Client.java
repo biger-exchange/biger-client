@@ -11,6 +11,8 @@ public interface Client {
 
     void stop();
 
+    void interruptConnection();
+
     Mono<ExchangeResponse> expectAck(String requestId);
 
     Mono<ExchangeResponse> requestSingle(String requestId, String requestMsg);

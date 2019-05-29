@@ -7,6 +7,8 @@ targetCompatibility = 1.8
 
 repositories {
     mavenLocal()
+    maven {url 'http://nexus.ucex.corp/repository/maven-public/' }
+    mavenLocal()
     mavenCentral()
 }
 
@@ -18,4 +20,7 @@ dependencies {
 
     implementation 'io.netty:netty-all:4.1.32.Final'
     implementation 'org.slf4j:slf4j-api:1.7.25'
+
+    // Use JUnit test framework
+    testImplementation 'junit:junit:4.+'
 }

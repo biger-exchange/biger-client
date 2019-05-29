@@ -1,6 +1,13 @@
 
 configure(subprojects) {
 
+    repositories {
+        mavenLocal()
+        maven {url 'http://nexus.ucex.corp/repository/maven-public/' }
+        mavenLocal()
+        mavenCentral()
+    }
+    
     apply plugin: 'java'
     apply plugin: 'java-library'
     apply plugin: 'idea'
@@ -9,7 +16,7 @@ configure(subprojects) {
     [compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
 
     group = 'com.biger'
-    version = '2.4.5'
+    version = '2.4.5-2'
 
     repositories {
         mavenLocal()
