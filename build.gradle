@@ -1,9 +1,6 @@
-
 configure(subprojects) {
 
     repositories {
-        mavenLocal()
-        maven {url 'http://nexus.ucex.corp/repository/maven-public/' }
         mavenLocal()
         mavenCentral()
     }
