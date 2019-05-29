@@ -1,6 +1,8 @@
 package com.biger.client;
 
 import java.math.BigDecimal;
+import java.util.Arrays;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 public interface OrderClient {
@@ -43,6 +45,24 @@ public interface OrderClient {
                     ", createTime=" + createTime +
                     ", rejectReason='" + rejectReason + '\'' +
                     '}';
+        }
+    }
+
+    enum ErrorCode {
+        ORDER_DATA_NOT_FOUND(5101),
+        ORDER_USER_MISMATCH(5165),
+        ORDER_ALREADY_CANCELLED(5161),
+        ORDER_CANCEL_WRONG_STATE(5166),
+        ORDER_CANCEL_FAILED(5163);
+
+        public final int code;
+
+        ErrorCode(int i) {
+            code = i;
+        }
+
+        public static Optional<ErrorCode> forCode(int c) {
+            return Arrays.stream(ErrorCode.values()).filter(ec->ec.code == c).findFirst();
         }
     }
 }
