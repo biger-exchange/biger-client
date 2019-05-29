@@ -249,6 +249,11 @@ public class BigerWebSocketClient implements Client {
     }
 
     @Override
+    public void interruptConnection() {
+        this.ws.abort();
+    }
+
+    @Override
     public Flux<ExchangeResponse> sub(String subId, String subRequestMsg, String unSubRequestMsg, Predicate<String> topicFilter, boolean forceSubReq) {
         LOG.debug("Subscribing to websocket Channel {}", subId);
         Subscription sub = new Subscription(subRequestMsg, unSubRequestMsg);
