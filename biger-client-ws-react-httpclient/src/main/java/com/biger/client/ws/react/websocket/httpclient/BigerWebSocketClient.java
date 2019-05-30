@@ -119,19 +119,24 @@ public class BigerWebSocketClient implements Client {
 
         if (stopped) throw new IllegalStateException("already stopped");
 
+        LOG.info("wslock");
         wsLock.lock();
-        if (this.ws != null) return this.ws;
+        LOG.info("wslockok");
 
         try {
+            if (this.ws != null) return this.ws;
             while (true) { // TODO - notify app of connection issues if this takes too long
                 try {
-                    this.ws = connect().get();
+                    LOG.info("connecting");
+                    WebSocket newWs = connect().get();
+                    this.ws = newWs;
+                    LOG.info("connected");
                     for (Map.Entry<String, Subscription> x : this.subIdMap.entrySet()) {
                         try {
                             if (x.getValue().count.get() > 0)
-                                sendMessage(x.getValue().subRequest);
+                                sendMessage(newWs, x.getValue().subRequest);
                         } catch (Exception ex) {
-                            LOG.warn("Failed to resub for [{}]", x.getValue(), ex);
+                            LOG.error("Failed to resub for [{}]", x.getValue(), ex);
                         }
                     }
                     return this.ws;
@@ -143,6 +148,7 @@ public class BigerWebSocketClient implements Client {
                 }
             }
         } finally {
+            LOG.info("wsunlock");
             wsLock.unlock();
         }
     }
@@ -189,7 +195,7 @@ public class BigerWebSocketClient implements Client {
 
     final ReentrantLock sendMsgLock = new ReentrantLock();
     public void sendMessage(String message) throws IOException {
-        LOG.debug("Sending message: {}", message);
+        LOG.info("Sending message: {}", message);
 
         WebSocket ws = ws();
 
@@ -203,21 +209,15 @@ public class BigerWebSocketClient implements Client {
         }
     }
 
-    // variant that does not send message it it was not connected
-    public void connectOrSendMessage(String message) throws IOException {
-        LOG.debug("Sending message: {}", message);
+    private void sendMessage(WebSocket ws, String message) {
+        LOG.info("Sending message: {}", message);
 
         if (message != null) {
-            Optional<WebSocket> ws = getConnectedWebSocket();
-            if (ws.isPresent()) {
-                sendMsgLock.lock();
-                try {
-                    ws.get().sendText(message, true).join();
-                } finally {
-                    sendMsgLock.unlock();
-                }
-            } else {
-                ws();
+            sendMsgLock.lock();
+            try {
+                ws.sendText(message, true).join();
+            } finally {
+                sendMsgLock.unlock();
             }
         }
     }
@@ -291,7 +291,7 @@ public class BigerWebSocketClient implements Client {
                 .doOnSubscribe(s->{
                     if (finalSub.count.incrementAndGet() == 1) {
                         try {
-                            connectOrSendMessage(subRequestMsg);
+                            sendMessage(subRequestMsg);
                         } catch (IOException e) {
                             //ignore
                         }
@@ -311,9 +311,12 @@ public class BigerWebSocketClient implements Client {
 
     @Override
     public void interruptConnection() {
+        LOG.info("interrupting");
+        wsLock.lock();
         //TODO use atomicReference for ws to avoid races
         WebSocket ws = this.ws;
         this.ws = null;
+        wsLock.unlock();
         if (ws != null)
             ws.abort();
     }

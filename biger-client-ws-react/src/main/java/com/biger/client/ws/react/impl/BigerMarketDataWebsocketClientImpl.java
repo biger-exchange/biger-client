@@ -192,11 +192,6 @@ public class BigerMarketDataWebsocketClientImpl implements BigerMarketDataWebsoc
     }
 
     @Override
-    public void interruptConnection() {
-        this.jsonWebSocketClient.interruptConnection();
-    }
-
-    @Override
     public void close() {
         this.jsonWebSocketClient.stop();
     }
