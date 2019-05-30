@@ -348,13 +348,7 @@ public class BigerWebSocketClient implements Client {
 
         {
             Subscription prev = this.subIdMap.putIfAbsent(subId, sub);
-            if (prev == null) {
-                try {
-                    sendMessage(subRequestMsg);
-                } catch (IOException e) {
-                    //ignore
-                }
-            } else {
+            if (prev != null) {
                 sub = prev;
             }
         }
@@ -370,7 +364,7 @@ public class BigerWebSocketClient implements Client {
                         }
                     }
                 })
-                .doOnTerminate(()->{
+                .doFinally(signal->{
                             if (finalSub.count.decrementAndGet() == 0) {
                                 try {
                                     sendMessage(unSubRequestMsg);
@@ -384,10 +378,12 @@ public class BigerWebSocketClient implements Client {
 
     private void resub() {
         this.subIdMap.entrySet().forEach(x -> {
-            try {
-                sendMessage(x.getValue().subRequest);
-            } catch (Exception ex) {
-                LOG.warn("Failed to resub for [{}]", x.getValue(), ex);
+            if (x.getValue().count.get() > 0) {
+                try {
+                    sendMessage(x.getValue().subRequest);
+                } catch (Exception ex) {
+                    LOG.warn("Failed to resub for [{}]", x.getValue(), ex);
+                }
             }
         });
     }

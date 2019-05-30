@@ -109,6 +109,10 @@ public class BigerWebSocketClient implements Client {
         }
     }
 
+    private Optional<WebSocket> getConnectedWebSocket() {
+        return Optional.ofNullable(this.ws);
+    }
+
     private WebSocket ws() {
         WebSocket ws = this.ws;
         if (ws != null) return ws;
@@ -116,13 +120,16 @@ public class BigerWebSocketClient implements Client {
         if (stopped) throw new IllegalStateException("already stopped");
 
         wsLock.lock();
+        if (this.ws != null) return this.ws;
+
         try {
             while (true) { // TODO - notify app of connection issues if this takes too long
                 try {
                     this.ws = connect().get();
                     for (Map.Entry<String, Subscription> x : this.subIdMap.entrySet()) {
                         try {
-                            sendMessage(x.getValue().subRequest);
+                            if (x.getValue().count.get() > 0)
+                                sendMessage(x.getValue().subRequest);
                         } catch (Exception ex) {
                             LOG.warn("Failed to resub for [{}]", x.getValue(), ex);
                         }
@@ -196,6 +203,25 @@ public class BigerWebSocketClient implements Client {
         }
     }
 
+    // variant that does not send message it it was not connected
+    public void connectOrSendMessage(String message) throws IOException {
+        LOG.debug("Sending message: {}", message);
+
+        if (message != null) {
+            Optional<WebSocket> ws = getConnectedWebSocket();
+            if (ws.isPresent()) {
+                sendMsgLock.lock();
+                try {
+                    ws.get().sendText(message, true).join();
+                } finally {
+                    sendMsgLock.unlock();
+                }
+            } else {
+                ws();
+            }
+        }
+    }
+
     @Override
     public Mono<ExchangeResponse> expectAck(String requsetId) {
         return Mono.create(emitter -> {
@@ -255,13 +281,7 @@ public class BigerWebSocketClient implements Client {
 
         {
             Subscription prev = this.subIdMap.putIfAbsent(subId, sub);
-            if (prev == null) {
-                try {
-                    sendMessage(subRequestMsg);
-                } catch (IOException e) {
-                    //ignore
-                }
-            } else {
+            if (prev != null) {
                 sub = prev;
             }
         }
@@ -271,13 +291,13 @@ public class BigerWebSocketClient implements Client {
                 .doOnSubscribe(s->{
                     if (forceSubReq || finalSub.count.incrementAndGet() == 1) {
                         try {
-                            sendMessage(subRequestMsg);
+                            connectOrSendMessage(subRequestMsg);
                         } catch (IOException e) {
                             //ignore
                         }
                     }
                 })
-                .doOnTerminate(()->{
+                .doFinally(signal->{
                     if (finalSub.count.decrementAndGet() == 0) {
                         try {
                             sendMessage(unSubRequestMsg);
