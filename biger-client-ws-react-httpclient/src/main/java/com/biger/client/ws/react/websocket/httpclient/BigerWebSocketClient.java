@@ -275,7 +275,7 @@ public class BigerWebSocketClient implements Client {
     }
 
     @Override
-    public Flux<ExchangeResponse> sub(String subId, String subRequestMsg, String unSubRequestMsg, Predicate<String> topicFilter, boolean forceSubReq) {
+    public Flux<ExchangeResponse> sub(String subId, String subRequestMsg, String unSubRequestMsg, Predicate<String> topicFilter) {
         LOG.debug("Subscribing to websocket Channel {}", subId);
         Subscription sub = new Subscription(subRequestMsg, unSubRequestMsg);
 
@@ -289,7 +289,7 @@ public class BigerWebSocketClient implements Client {
         Subscription finalSub = sub;
         return emitter.filter(resp->topicFilter.test(resp.getTopic()))
                 .doOnSubscribe(s->{
-                    if (forceSubReq || finalSub.count.incrementAndGet() == 1) {
+                    if (finalSub.count.incrementAndGet() == 1) {
                         try {
                             connectOrSendMessage(subRequestMsg);
                         } catch (IOException e) {
@@ -307,6 +307,15 @@ public class BigerWebSocketClient implements Client {
                     }
                 }
         );
+    }
+
+    @Override
+    public void interruptConnection() {
+        //TODO use atomicReference for ws to avoid races
+        WebSocket ws = this.ws;
+        this.ws = null;
+        if (ws != null)
+            ws.abort();
     }
 
     static ByteBuffer pingPayload = ByteBuffer.wrap(new byte[]{8, 1, 8, 1});

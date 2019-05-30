@@ -19,5 +19,7 @@ public interface Client {
         return ServiceLoader.load(ClientBuilder.class).iterator().next();
     }
 
-    Flux<ExchangeResponse> sub(String subId, String subRequestMsg, String unSubRequestMsg, Predicate<String> topicFilter, boolean forceSubReq);
+    Flux<ExchangeResponse> sub(String subId, String subRequestMsg, String unSubRequestMsg, Predicate<String> topicFilter);
+
+    void interruptConnection();
 }

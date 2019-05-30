@@ -13,19 +13,17 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Scheduler;
 
 import java.math.BigDecimal;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 public class BigerMarketDataWebsocketClientImpl implements BigerMarketDataWebsocketClient {
@@ -39,6 +37,8 @@ public class BigerMarketDataWebsocketClientImpl implements BigerMarketDataWebsoc
 
     final private BigerMarketReponseParser bigerMarketReponseParser = BigerMarketReponseParser.INSTANCE;
 
+    final Function<String, BigerMarketEventType> methodToEventType;
+
     long generateId() {
         long ans = this.requestCounter.incrementAndGet();
         if (ans > (1 << 20)) {
@@ -47,12 +47,21 @@ public class BigerMarketDataWebsocketClientImpl implements BigerMarketDataWebsoc
         return ans;
     }
 
-    public BigerMarketDataWebsocketClientImpl(URI address) {
+    public BigerMarketDataWebsocketClientImpl(URI address, List<BigerMarketEventType> customEventTypes) {
+        Map<String, BigerMarketEventType> m = new HashMap<>();
+        for (BigerMarketEventType type : BigerMarketEventType.KnownTypes.values()) {
+            m.put(type.method(), type);
+        }
+        for (BigerMarketEventType type : customEventTypes) {
+            m.put(type.method(), type);
+        }
+        methodToEventType = m::get;
+
         try {
             jsonWebSocketClient = Client.newBuilder()
                     .uri(address)
-                    .text2Response(bigerMarketReponseParser::text2ExchangeResponse)
-                    .response2SubId(bigerMarketReponseParser::extractSubIdFromExchangeResponse)
+                    .text2Response(s-> bigerMarketReponseParser.text2ExchangeResponse(s, methodToEventType))
+                    .response2SubId(resp->bigerMarketReponseParser.extractSubIdFromExchangeResponse(resp, methodToEventType))
                     .build()
                     .get();
         } catch (InterruptedException | ExecutionException e) {
@@ -62,20 +71,20 @@ public class BigerMarketDataWebsocketClientImpl implements BigerMarketDataWebsoc
 
     private Flux<ExchangeResponse> doSub(BigerMarketEventType subType, String key, Object subRequest, Object unSubRequest) {
         String topic = subType.toKey(key);
-        return doSub(subType, key, subRequest, unSubRequest, t->t.equals(topic), false);
+        return doSub(subType, key, subRequest, unSubRequest, t->t.equals(topic));
     }
 
-    private Flux<ExchangeResponse> doSub(BigerMarketEventType subType, String key, Object subRequest, Object unSubRequest, Predicate<String> filter, boolean forceSubReq) {
+    private Flux<ExchangeResponse> doSub(BigerMarketEventType subType, String key, Object subRequest, Object unSubRequest, Predicate<String> filter) {
         try {
             long id = this.generateId();
             String subRequestStr = this.objectMapper.writeValueAsString(ExchangeRequest.builder()
                     .id(id)
-                    .method(subType.getSubOp())
+                    .method(subType.subOp())
                     .params(subRequest)
                     .build());
             String unSubRequestStr = this.objectMapper.writeValueAsString(ExchangeRequest.builder()
                     .id(this.generateId())
-                    .method(subType.getUnSubOp())
+                    .method(subType.unsubOp())
                     .params(unSubRequest)
                     .build());
             LOG.debug("sub request is [{}]", subRequestStr);
@@ -88,7 +97,7 @@ public class BigerMarketDataWebsocketClientImpl implements BigerMarketDataWebsoc
             }, err -> {
                 LOG.warn("Failed to sub for method [{}]", subType, err);
             });
-            return this.jsonWebSocketClient.sub(subType.toKey(key), subRequestStr, unSubRequestStr, filter, forceSubReq);
+            return this.jsonWebSocketClient.sub(subType.toKey(key), subRequestStr, unSubRequestStr, filter);
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to serialze obj to json", ex);
         }
@@ -122,14 +131,14 @@ public class BigerMarketDataWebsocketClientImpl implements BigerMarketDataWebsoc
 
     @Override
     public Flux<BigerMarketDepthEvent> subMarketDepth(String symbol, int limit, String interval) {
-        return this.doSub(BigerMarketEventType.DEPTH_UPDATE, symbol, DepthSubRequest.builder().symbol(symbol).limit(limit).interval(interval).build(), DepthUnSubRequest.builder().symbol(symbol).build())
+        return this.doSub(BigerMarketEventType.KnownTypes.DEPTH_UPDATE, symbol, DepthSubRequest.builder().symbol(symbol).limit(limit).interval(interval).build(), DepthUnSubRequest.builder().symbol(symbol).build())
                 .map(x -> (BigerMarketDepthEvent) x.getParams());
 
     }
 
     @Override
     public Flux<BigerSymbolPriceEvent> subSymbolPrice(String symbol) {
-        return this.doSub(BigerMarketEventType.PRICE_UPDATE, symbol, new SymbolPriceSubRequest(symbol), new SymbolPriceSubRequest(symbol))
+        return this.doSub(BigerMarketEventType.KnownTypes.PRICE_UPDATE, symbol, new SymbolPriceSubRequest(symbol), new SymbolPriceSubRequest(symbol))
                 .map(x -> (BigerSymbolPriceEvent) x.getParams());
     }
 
@@ -162,7 +171,7 @@ public class BigerMarketDataWebsocketClientImpl implements BigerMarketDataWebsoc
 
     @Override
     public Flux<BigerDealEvent> subDeals(String symbol) {
-        return this.doSub(BigerMarketEventType.DEAL_UPDATE, symbol, new DealSubRequest(symbol), new DealUnSubRequest(symbol))
+        return this.doSub(BigerMarketEventType.KnownTypes.DEAL_UPDATE, symbol, new DealSubRequest(symbol), new DealUnSubRequest(symbol))
                 .map(x -> (BigerDealEvent) x.getParams());
     }
 
@@ -172,28 +181,14 @@ public class BigerMarketDataWebsocketClientImpl implements BigerMarketDataWebsoc
     }
 
     @Override
-    public Flux<BigerSymbolStateEvent> subSymbolState(String symbol) {
-        return this.doSub(BigerMarketEventType.STATE_UPDATE, symbol, new StateSubRequest(symbol), new StateSubRequest(symbol))
-                .map(x -> (BigerSymbolStateEvent) x.getParams());
+    public <T> Flux<T> customSub(BigerMarketEventType eventType, String key, Object subRequest, Object unsubRequest, Predicate<String> filter) {
+        return doSub(eventType, key, subRequest, unsubRequest, filter)
+                .map(x -> (T) x.getParams());
     }
 
     @Override
-    public RefreshableFlux<BigerSymbolStateEvent> subAllSymbolStates() {
-
-        Flux<BigerSymbolStateEvent> f = doSub(BigerMarketEventType.STATE_UPDATE, "all", new StateSubRequest("all"), new StateSubRequest("all"), t -> t.startsWith(BigerMarketEventType.STATE_UPDATE.name()), true)
-                .map(x -> (BigerSymbolStateEvent) x.getParams());
-
-        return new RefreshableFlux<BigerSymbolStateEvent>() {
-            @Override
-            public void refresh() {
-                doSub(BigerMarketEventType.STATE_UPDATE, "all", new StateSubRequest("all"), new StateSubRequest("all"), t->false, true).subscribe().dispose();
-            }
-
-            @Override
-            public Flux<BigerSymbolStateEvent> flux() {
-                return f;
-            }
-        };
+    public void disconnect() {
+        jsonWebSocketClient.interruptConnection();
     }
 
     @Override

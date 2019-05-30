@@ -341,7 +341,8 @@ public class BigerWebSocketClient implements Client {
         }
     }
 
-    public Flux<ExchangeResponse> sub(String subId, String subRequestMsg, String unSubRequestMsg, Predicate<String> topicFilter, boolean forceSubReq) {
+    @Override
+    public Flux<ExchangeResponse> sub(String subId, String subRequestMsg, String unSubRequestMsg, Predicate<String> topicFilter) {
         LOG.debug("Subscribing to websocket Channel {}", subId);
 
         Subscription sub = new Subscription(subRequestMsg, unSubRequestMsg);
@@ -356,7 +357,7 @@ public class BigerWebSocketClient implements Client {
         Subscription finalSub = sub;
         return emitter.filter(resp->topicFilter.test(resp.getTopic()))
                 .doOnSubscribe(s->{
-                    if (forceSubReq || finalSub.count.incrementAndGet() == 1) {
+                    if (finalSub.count.incrementAndGet() == 1) {
                         try {
                             sendMessage(subRequestMsg);
                         } catch (IOException e) {
@@ -374,6 +375,15 @@ public class BigerWebSocketClient implements Client {
                             }
                         }
                 );
+    }
+
+    @Override
+    public void interruptConnection() {
+        this.websocketChannel.disconnect()
+            .addListener(future -> {
+                LOG.info("Connection was disconnected by interruptConnection");
+            });
+
     }
 
     private void resub() {
@@ -397,7 +407,7 @@ public class BigerWebSocketClient implements Client {
             if (f.isSuccess()) {
                 isManualDisconnect = false;
             }
-            // shutdown sockets after disconnect for avoiding sockets leak
+            // shutdown sockets after interruptConnection for avoiding sockets leak
         });
         sink.error(throwable);
     }
@@ -442,7 +452,7 @@ public class BigerWebSocketClient implements Client {
                         websocketChannel.deregister();
                         websocketChannel.disconnect();
                     } catch (Exception ex) {
-                        LOG.warn("Failed to deregister & disconnect");
+                        LOG.warn("Failed to deregister & interruptConnection");
                     }
                     eventLoopGroup.schedule(() -> doStart().subscribe(), retryTimeout.toMillis(), TimeUnit.MILLISECONDS).addListener((x) -> {
                         LOG.info("reconnect scheduled by event loop, x [{}]", x);

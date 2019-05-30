@@ -3,55 +3,80 @@ package com.biger.client.ws.react;
 import com.biger.client.ws.react.domain.BigerDealEvent;
 import com.biger.client.ws.react.domain.BigerMarketDepthEvent;
 import com.biger.client.ws.react.domain.BigerSymbolPriceEvent;
-import com.biger.client.ws.react.domain.BigerSymbolStateEvent;
 import com.biger.client.ws.react.domain.response.ExchangeResponse;
 import com.biger.client.ws.react.domain.response.SymbolEvent;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.experimental.Accessors;
 
-import java.util.Arrays;
 
-@Getter
-@AllArgsConstructor
-public enum BigerMarketEventType {
+public interface BigerMarketEventType<T> {
 
-    PRICE_UPDATE("price.update", new TypeReference<ExchangeResponse<BigerSymbolPriceEvent>>() {
-    }, "price.subscribe", "price.unsubscribe"),
+    String method();
+    TypeReference<T> type();
+    String subOp();
+    String unsubOp();
+    String name();
 
-    DEPTH_UPDATE("depth.update", new TypeReference<ExchangeResponse<BigerMarketDepthEvent>>() {
-    }, "depth.subscribe", "depth.unsubscribe"),
+    static <T> BigerMarketEventType<T> of(String name, String method, String subOp, String unsubOp, TypeReference<T> typeRef) {
+        return new BigerMarketEventType<T>() {
+            @Override
+            public String method() {
+                return method;
+            }
 
-    DEAL_UPDATE("deals.update", new TypeReference<ExchangeResponse<BigerDealEvent>>() {
-    }, "deals.subscribe", "deals.unsubscribe"),
+            @Override
+            public TypeReference<T> type() {
+                return typeRef;
+            }
 
-    STATE_UPDATE("state.update", new TypeReference<ExchangeResponse<BigerSymbolStateEvent>>() {
-    }, "state.subscribe", "state.unsubscribe"),
+            @Override
+            public String subOp() {
+                return subOp;
+            }
 
-    OTHER("unkown", null, "", "");
+            @Override
+            public String unsubOp() {
+                return unsubOp;
+            }
 
-    private String method;
-
-    private TypeReference type;
-
-    private String subOp;
-
-    private String unSubOp;
-
-    static public BigerMarketEventType from(String s) {
-        return Arrays.stream(BigerMarketEventType.values())
-                .filter(x -> x != OTHER)
-                .filter(x -> x.method.equalsIgnoreCase(s))
-                .findAny()
-                .orElse(OTHER);
+            @Override
+            public String name() {
+                return name;
+            }
+        };
     }
 
-    public String extractKey(SymbolEvent args) {
-        return this.name() + "_" + args.getSymbol();
+    @Getter
+    @AllArgsConstructor
+    @Accessors(fluent = true)
+    enum KnownTypes implements BigerMarketEventType{
+        PRICE_UPDATE("price.update", new TypeReference<ExchangeResponse<BigerSymbolPriceEvent>>() {
+        }, "price.subscribe", "price.unsubscribe"),
+
+        DEPTH_UPDATE("depth.update", new TypeReference<ExchangeResponse<BigerMarketDepthEvent>>() {
+        }, "depth.subscribe", "depth.unsubscribe"),
+
+        DEAL_UPDATE("deals.update", new TypeReference<ExchangeResponse<BigerDealEvent>>() {
+        }, "deals.subscribe", "deals.unsubscribe"),
+
+        OTHER("unkown", new TypeReference<ExchangeResponse<JsonNode>>() {
+        }, "", "");
+
+        public final String method;
+        public final TypeReference type;
+        public final String subOp;
+        public final String unsubOp;
     }
 
-    public String toKey(String arg) {
-        return this.name() + "_" + arg;
+    default String extractKey(SymbolEvent args) {
+        return name() + "_" + args.getSymbol();
+    }
+
+    default String toKey(String arg) {
+        return name() + "_" + arg;
     }
 
 

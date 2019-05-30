@@ -8,8 +8,10 @@ import reactor.core.publisher.Mono;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 
 public interface BigerMarketDataWebsocketClient extends AutoCloseable {
 
@@ -23,10 +25,6 @@ public interface BigerMarketDataWebsocketClient extends AutoCloseable {
 
     Flux<BigerDealEvent> subDeals(String symbol);
 
-    Flux<BigerSymbolStateEvent> subSymbolState(String symbol);
-
-    RefreshableFlux<BigerSymbolStateEvent> subAllSymbolStates();
-
     /**
      * @param type :  PC, H5, APP
      * @param token : token from http api
@@ -34,12 +32,20 @@ public interface BigerMarketDataWebsocketClient extends AutoCloseable {
      */
     Mono<LoginAck> login(String type, String token);
 
+    <T> Flux<T> customSub(BigerMarketEventType eventType, String key, Object subRequest, Object unsubRequest, Predicate<String> filter);
+
+    /**
+     * there prob shouldnt be any good reason to do this other than for testing, do not use this unless you know what you are doing
+     */
+    void disconnect();
+
     @Override
     void close();
 
     static Builder newBuilder() {
         return new Builder() {
             AtomicReference<URI> uri = new AtomicReference<>();
+            List<BigerMarketEventType> customEventTypes = new ArrayList<>();
             @Override
             public Builder uri(URI uri) {
                 this.uri.set(uri);
@@ -47,20 +53,22 @@ public interface BigerMarketDataWebsocketClient extends AutoCloseable {
             }
 
             @Override
+            public Builder addBigerMarketEventType(BigerMarketEventType t) {
+                customEventTypes.add(t);
+                return this;
+            }
+
+            @Override
             public BigerMarketDataWebsocketClient build() {
-                return new BigerMarketDataWebsocketClientImpl(uri.get());
+                return new BigerMarketDataWebsocketClientImpl(uri.get(), customEventTypes);
             }
         };
     }
 
     interface Builder {
         Builder uri(URI uri);
+        Builder addBigerMarketEventType(BigerMarketEventType t);
 
         BigerMarketDataWebsocketClient build();
-    }
-
-    interface RefreshableFlux<T> {
-        void refresh();
-        Flux<T> flux();
     }
 }

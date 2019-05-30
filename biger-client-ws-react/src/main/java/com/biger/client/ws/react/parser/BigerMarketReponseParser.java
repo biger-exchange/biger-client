@@ -13,6 +13,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.Optional;
+import java.util.function.Function;
 
 public class BigerMarketReponseParser {
     static final Logger LOG = LoggerFactory.getLogger(BigerMarketReponseParser.class);
@@ -32,25 +34,13 @@ public class BigerMarketReponseParser {
         objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
-    public ExchangeResponse text2ExchangeResponse(String text) {
+    public ExchangeResponse text2ExchangeResponse(String text, Function<String, BigerMarketEventType> methodToEventType) {
         try {
             JsonNode jsonNode = this.objectMapper.readTree(text);
 
             if (jsonNode.has("method")) {
                 String method = jsonNode.get("method").asText();
-                BigerMarketEventType type = BigerMarketEventType.from(method);
-                switch (type) {
-                    case PRICE_UPDATE:
-                    case DEPTH_UPDATE:
-                    case DEAL_UPDATE:
-                    case STATE_UPDATE:
-                        return this.objectMapper.convertValue(jsonNode, type.getType());
-
-                    default:
-                        return this.objectMapper.convertValue(jsonNode, new TypeReference<ExchangeResponse<JsonNode>>() {
-                        });
-                }
-
+                return this.objectMapper.convertValue(jsonNode, Optional.ofNullable(methodToEventType.apply(method)).orElse(BigerMarketEventType.KnownTypes.OTHER).type());
             } else {
                 return this.objectMapper.convertValue(jsonNode, new TypeReference<ExchangeResponse<JsonNode>>() {
                 });
@@ -62,22 +52,11 @@ public class BigerMarketReponseParser {
 
     }
 
-    public String extractSubIdFromExchangeResponse(ExchangeResponse data) {
+    public String extractSubIdFromExchangeResponse(ExchangeResponse data, Function<String, BigerMarketEventType> methodToEventType) {
         if (data.getMethod() == null || data.getMethod().isEmpty()) {
             return String.valueOf(data.getId());
         }
-
-        BigerMarketEventType type = BigerMarketEventType.from(data.getMethod());
-        switch (type) {
-            case PRICE_UPDATE:
-            case DEPTH_UPDATE:
-            case DEAL_UPDATE:
-            case STATE_UPDATE:
-                return type.extractKey((SymbolEvent) data.getParams());
-            default:
-                return type.getMethod();
-
-        }
+        return Optional.ofNullable(methodToEventType.apply(data.getMethod())).orElse(BigerMarketEventType.KnownTypes.OTHER).extractKey((SymbolEvent) data.getParams());
 
     }
 
