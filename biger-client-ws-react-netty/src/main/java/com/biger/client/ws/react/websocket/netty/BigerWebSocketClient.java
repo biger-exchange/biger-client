@@ -126,6 +126,13 @@ public class BigerWebSocketClient implements Client {
         return doStart();
     }
 
+    public void interruptConnection() {
+        this.websocketChannel.disconnect()
+                .addListener(future -> {
+                    LOG.info("Connection was disconnected by interruptConnection");
+                });
+    }
+
     public Mono<Integer> doStart() {
 
         final BigerWebSocketClientHandler handler = new NettyBigerWebSocketClientHandler(
