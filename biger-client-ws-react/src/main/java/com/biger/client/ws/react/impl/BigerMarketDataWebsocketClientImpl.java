@@ -57,16 +57,12 @@ public class BigerMarketDataWebsocketClientImpl implements BigerMarketDataWebsoc
         }
         methodToEventType = m::get;
 
-        try {
-            jsonWebSocketClient = Client.newBuilder()
-                    .uri(address)
-                    .text2Response(s-> bigerMarketReponseParser.text2ExchangeResponse(s, methodToEventType))
-                    .response2SubId(resp->bigerMarketReponseParser.extractSubIdFromExchangeResponse(resp, methodToEventType))
-                    .build()
-                    .get();
-        } catch (InterruptedException | ExecutionException e) {
-            throw new RuntimeException(e);
-        }
+        jsonWebSocketClient = Client.newBuilder()
+                .uri(address)
+                .text2Response(s-> bigerMarketReponseParser.text2ExchangeResponse(s, methodToEventType))
+                .response2SubId(resp->bigerMarketReponseParser.extractSubIdFromExchangeResponse(resp, methodToEventType))
+                .build();
+
     }
 
     private Flux<ExchangeResponse> doSub(BigerMarketEventType subType, String key, Object subRequest, Object unSubRequest) {

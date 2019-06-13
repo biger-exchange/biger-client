@@ -11,5 +11,5 @@ public interface ClientBuilder {
     ClientBuilder text2Response(Function<String, ExchangeResponse> text2Response);
     ClientBuilder response2SubId(Function<ExchangeResponse, String> response2SubId);
 
-    CompletableFuture<? extends Client> build();
+    Client build();
 }

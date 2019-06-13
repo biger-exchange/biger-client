@@ -32,17 +32,10 @@ public class BigerWebSocketClientBuilder implements ClientBuilder {
     }
 
     @Override
-    public CompletableFuture<? extends Client> build() {
+    public BigerWebSocketClient build() {
         BigerWebSocketClient c = new BigerWebSocketClient(uri, text2Response, response2SubId);
-        CompletableFuture<BigerWebSocketClient> f = new CompletableFuture<>();
-        c.doStart()
-            .doOnSuccess(i->{
-                if (i == 1) f.complete(c);
-                f.completeExceptionally(new IllegalStateException("didnt connect successfully"));
-            })
-            .doOnError(f::completeExceptionally)
-            .subscribe();
-        return f;
+        c.doStart().subscribe();
+        return c;
     }
 }
 

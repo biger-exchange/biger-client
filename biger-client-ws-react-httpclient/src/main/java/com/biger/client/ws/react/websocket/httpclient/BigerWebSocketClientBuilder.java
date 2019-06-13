@@ -32,7 +32,7 @@ public class BigerWebSocketClientBuilder implements ClientBuilder {
     }
 
     @Override
-    public CompletableFuture<? extends Client> build() {
+    public Client build() {
         return BigerWebSocketClient.build(uri, text2Response, response2SubId);
     }
 }

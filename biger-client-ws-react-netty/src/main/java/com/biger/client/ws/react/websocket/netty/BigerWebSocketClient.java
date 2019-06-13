@@ -186,9 +186,7 @@ public class BigerWebSocketClient implements Client {
             LOG.info("Connection to websocket server succeeded, resub now");
             resub();
         });
-
     }
-
 
     SslContext buildSslContext(URI uri) {
         String scheme = uri.getScheme();

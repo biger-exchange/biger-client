@@ -92,10 +92,10 @@ public class BigerWebSocketClient implements Client {
         sink = emitter.sink(FluxSink.OverflowStrategy.LATEST);
     }
 
-    static CompletableFuture<BigerWebSocketClient> build(URI address, Function<String, ExchangeResponse> text2MsgFunc, Function<ExchangeResponse, String> msg2SubIdFunc) {
+    static BigerWebSocketClient build(URI address, Function<String, ExchangeResponse> text2MsgFunc, Function<ExchangeResponse, String> msg2SubIdFunc) {
         BigerWebSocketClient c = new BigerWebSocketClient(address, text2MsgFunc, msg2SubIdFunc);
         c.t.schedule(c.pingTask, 0L, 15000L);
-        return CompletableFuture.completedFuture(c);
+        return c;
     }
 
     static class Subscription {
